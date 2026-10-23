@@ -1,0 +1,70 @@
+Type,Dept,Fungsi,Name,Address,Hostname,Location,Status,DriverCode
+tcpip,CCB,Utility,D-Link Epson L1110,192.168.88.14,PSCCB08,Utility,active,6
+tcpip,CCB,CCB,FX DocuCentre IV 2060,192.168.88.15,PSCCB02,CCB,active,13
+tcpip,CCB,Manager,Epson L5290,192.168.88.16,PSCCB03,Manager Room,active,9
+tcpip,CCB,Section Head,Epson L5290,192.168.88.19,PSCCB06,Section Head Room,active,9
+tcpip,CCB,Aromatic,HP 5100TN Aromatic,192.168.88.20,PSCCB01,,active,1
+tcpip,CCB,CRO,D-Link HPLJ-1010,192.168.88.21,PSCCB09,CRO WH LT2,active,1
+tcpip,CCB,Chavalit,HP LJ Color 2600n,192.168.88.23,PSCCB04,Chavalit,active,1
+tcpip,CCB,Platforming,D-Link Epson L1210,192.168.88.21,PSCCB09,Platforming,active,7
+tcpip,CCB,Offsite,Epson L5290,192.168.88.26,PSCCB05,Offsite,active,9
+tcpip,Wireless CCB,Radio,Wireless CBB-02,192.168.88.34,CCB-02,Radio Room,active,
+tcpip,Wireless CCB,Cahyo,Wireless CBB-01,192.168.88.35,CCB-01,Cahyo Saputra,active,
+tcpip,SPAREPART / GM BLD,Warehouse,Zebra Barcode ZT410,192.168.91.14,ZT410-203dpi ZPL,Warehouse,active,17
+tcpip,SPAREPART / GM BLD,Finance,Epson L5290,192.168.91.20,PSSPR01,Finance,active,9
+tcpip,SPAREPART / GM BLD,Procurement,Epson L1210,192.168.91.21,PSPUR01,Procurement Selatan,active,7
+tcpip,SPAREPART / GM BLD,Warehouse,Zebra Barcode S4M,192.168.91.22,ZTC S4M-200dpi ZPL,Warehouse,active,18
+tcpip,SPAREPART / GM BLD,Sparepart,FX DocuCentre IV 2060,192.168.91.23,PSFIN01,Sparepart,active,13
+tcpip,SPAREPART / GM BLD,Procurement,Epson LQ 2190,192.168.91.24,PSPUR02,Procurement,active,11
+tcpip,SPAREPART / GM BLD,HR,TP-Link Epson L1110,192.168.91.25,PSHRD01,HR Utama,active,6
+tcpip,SPAREPART / GM BLD,Exim,Epson L310,192.168.91.26,PSEXM01,Exim,active,6
+tcpip,SPAREPART / GM BLD,Warehouse,Epson L1110 / LQ 2180,192.168.91.27,PSSPR02,Warehouse,active,11
+tcpip,SPAREPART / GM BLD,Procurement,Epson L5290,192.168.91.28,PSPUR03,Procurement Utara,active,9
+tcpip,SPAREPART / GM BLD,GA,Epson L5290,192.168.91.29,PSSPR04,GA,active,9
+tcpip,SPAREPART / GM BLD,HR,Epson L1110,192.168.91.30,PSHRD02,HR Bu Desi,active,6
+tcpip,SPAREPART / GM BLD,Procurement,Epson L5290,192.168.91.31,PSPUR04,Procurement (admin),active,9
+tcpip,SPAREPART / GM BLD,Monitor,Host Monitor,192.168.91.32,,,active,
+tcpip,SPAREPART / GM BLD,MPC,Epson L1110,192.168.91.33,,MPC,active,6
+tcpip,SPAREPART / GM BLD,CSR,Epson L1110,192.168.91.34,PSCSR01,CSR,active,6
+tcpip,LABORATORY,Laboratory,FX DocuCentre 2060,192.168.92.22,PSLAB02,Laboratory,active,13
+tcpip,LABORATORY,Laboratory,Epson L1110,192.168.92.23,PSLAB03,Laboratory,active,6
+tcpip,LABORATORY,Inspection,Epson L1300 (TL-PS110),192.168.92.24,pslab04,Inspection,active,8
+tcpip,LABORATORY,Meeting,Mini PC Ruang Meeting LAB 1,192.168.92.25,D92-LAB-BTWS32C,Laboratory,active,
+tcpip,LABORATORY,Laboratory,TP-Link Epson L1110,192.168.92.26,pslab05,Laboratory,active,6
+tcpip,LABORATORY,ENG-PE,TP-Link Epson L1110,192.168.92.27,PSCCB07,ENG-PE,active,6
+tcpip,LABORATORY,RPO,TP-Link Epson L1210,192.168.92.28,PSRPO01,RPO,active,7
+tcpip,LABORATORY,RPO,Epson L1110,192.168.92.29,PSRPO02,RPO-PE Manager,active,6
+tcpip,LABORATORY,GC,TP-Link Printer HP1010,192.168.84.30,PSGC01,GC Room,active,1
+tcpip,MAINTENANCE,IT,HP Color LJ 5100,192.168.93.20,PSMTN01,IT- Maintenance,active,1
+tcpip,MAINTENANCE,Maintenance,FX DocuCentre IV 2060,192.168.93.21,PSMTC02,Maintenance,active,13
+tcpip,MAINTENANCE,Project,D-Link Epson L5290,192.168.93.22,PSMTC03,Project Lt. 1,active,9
+tcpip,MAINTENANCE,Meeting,Meeting Room Maintenance Atas,192.168.93.23,meeting_room,Maintenance,active,
+tcpip,MAINTENANCE,Maintenance,Epson L5290,192.168.93.25,L5290,Maintenance Lt.2,active,9
+tcpip,MAINTENANCE,IT,Zebra Barcode ZT410,192.168.93.26,ZT410-203dpi ZPL,IT,active,17
+tcpip,MAINTENANCE,MPC,D-Link Epson L1300,192.168.93.27,PSMPC02,Maintenance MPC,active,8
+tcpip,MAINTENANCE,IT,Epson L5290,192.168.93.28,PSMTN03,IT,active,9
+tcpip,MAINTENANCE,Manager,Epson Print Scanner L1455,192.168.93.29,L1455,Maintenance Manager,active,10
+tcpip,MAINTENANCE,Relita,TP-Link Epson L1110,192.168.93.154,Sharing,Relita,active,6
+tcpip,MAINTENANCE,MC,TP-Link Epson L1110,192.168.93.31,PSMTN06,Maintenance MC,active,6
+tcpip,MAINTENANCE,Relita,TP-Link Epson L1300,192.168.93.32,PSLAB04,Relita,active,8
+tcpip,MAINTENANCE,Project,TP-Link Epson L1300,192.168.93.33,PSPRO01,Project Lt. 2,active,8
+tcpip,MAINTENANCE,Maintenance,TP-Link Epson L1110,192.168.93.34,,Maintenance Lt.2,active,6
+tcpip,MARINE,Marine,Dlink Epson L5290,192.168.94.45,PSMCB01,Marine,active,9
+tcpip,MARINE,Marine,FX Apeosport 4830,192.168.94.15,PSMCB02,Marine,active,15
+tcpip,MARINE,Rimbawan,HP Laser Jet Color 3600TN,192.168.94.21,PSMCB02,Pak Rimbawan,active,1
+tcpip,SERVICE / HSSE,Ainur,HP LJ Color 2600,192.168.95.20,PSSVC01,Ainur Rofik,active,1
+tcpip,SERVICE / HSSE,HSSE,FX DocuCentre 2060,192.168.95.22,PSDOC01,HSSE,active,13
+tcpip,SERVICE / HSSE,HSSE,EPSON L1110,192.168.95.26,PSSHE01,HSSE Staff,active,6
+tcpip,SERVICE / HSSE,Klinik,EPSON L1110,192.168.95.27,PSSHE02,Mantri Klinik,active,6
+tcpip,SERVICE / HSSE,HSSE,EPSON Color Works,192.168.95.28,,HSSE Staff,active,12
+tcpip,OLD OFFICE,TLI,FX DocuCentre III 2007,192.168.93.24,PSTLI01,Tinoto\Dekie TLI,active,14
+tcpip,Security,Kamari,HP Color 3600,192.168.96.25,PSSEC01,Kamari,active,1
+tcpip,Security,Admin,HP Officejet 7740,192.168.96.20,PSSEC02,Admin,active,2
+tcpip,Security,Admin,Epson L3110,192.168.97.26,PSSEC03,Admin SEC,active,3
+tcpip,Security,Suprapto,Epson L120,,,Bpk Suprapto,active,6
+tcpip,Security,DANTON,Epson L3110,,,DANTON,active,3
+tcpip,Security,Kamari,HP 2020,,,Bpk Kamari,active,1
+tcpip,Aromatic Bld,QM,Epson L310,192.168.99.25,PSQM01,Dewi K,active,6
+tcpip,Aromatic Bld,Syamsul,Apeos C3570,192.168.99.9,PSPRO01,Syamsul,active,16
+tcpip,Aromatic Bld,Riyanto,Epson L5290,192.168.99.29,PSSPR04,Riyanto,active,9
+tcpip,Aromatic Bld,Ronaldo,Epson L1210,192.168.99.201,PSRPO01,Ronaldo,active,7

@@ -1,0 +1,19 @@
+Code,Name,Path,Note
+1,HP LaserJet Universal,\\FILESERVER\Drivers\Printers\HP\LaserJet\setup.exe,"HP LJ 1010 / 2020 / 5100 / Color 2600 / 3600"
+2,HP OfficeJet,\\FILESERVER\Drivers\Printers\HP\OfficeJet\setup.exe,HP OfficeJet 7740
+3,Epson L3110,\\FILESERVER\Drivers\Printers\Epson\L3110\L3110_x64(printer).exe,Epson EcoTank L3110
+4,Canon G2010,\\FILESERVER\Drivers\Printers\Canon\G2010\setup.exe,Canon Pixma G2010 (cadangan)
+5,Brother HL-L2365,\\FILESERVER\Drivers\Printers\Brother\HL-L2365\setup.exe,Brother laser (cadangan)
+6,Epson L1110,\\FILESERVER\Drivers\Printers\Epson\L1110\L1110_x64(printer).exe,"Epson EcoTank L1110 / L310 / L120"
+7,Epson L1210,\\FILESERVER\Drivers\Printers\Epson\L1210\L1210_x64(printer).exe,Epson EcoTank L1210
+8,Epson L1300,\\FILESERVER\Drivers\Printers\Epson\L1300\L1300_x64(printer).exe,Epson EcoTank L1300 A3
+9,Epson L5290,\\FILESERVER\Drivers\Printers\Epson\L5290\L5290_x64_301JAUsHomeExportAsiaML(printer).exe,Epson EcoTank L5290
+10,Epson L1455,\\FILESERVER\Drivers\Printers\Epson\L1455\L1455_x64(printer).exe,Epson L1455 Print Scanner
+11,Epson LQ-2100 Series,\\FILESERVER\Drivers\Printers\Epson\LQ2100\setup.exe,"Epson LQ-2180 / LQ-2190 dot matrix"
+12,Epson ColorWorks,\\FILESERVER\Drivers\Printers\Epson\ColorWorks\setup.exe,Epson ColorWorks label
+13,FX DocuCentre 2060,\\FILESERVER\Drivers\Printers\FujiXerox\DocuCentre2060\setup.exe,"Fuji Xerox DocuCentre IV / 2060"
+14,FX DocuCentre III 2007,\\FILESERVER\Drivers\Printers\FujiXerox\DocuCentreIII2007\setup.exe,Fuji Xerox DocuCentre III 2007
+15,FX ApeosPort 4830,\\FILESERVER\Drivers\Printers\FujiXerox\ApeosPort4830\setup.exe,Fuji Xerox ApeosPort 4830
+16,FX Apeos C3570,\\FILESERVER\Drivers\Printers\FujiXerox\ApeosC3570\setup.exe,Fuji Xerox Apeos C3570
+17,Zebra ZT410,\\FILESERVER\Drivers\Printers\Zebra\ZT410\setup.exe,Zebra ZT410 203dpi ZPL
+18,Zebra S4M,\\FILESERVER\Drivers\Printers\Zebra\S4M\setup.exe,Zebra S4M 200dpi ZPL

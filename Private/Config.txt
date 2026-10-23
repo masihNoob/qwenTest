@@ -1,0 +1,13 @@
+# ============================================================
+# Config.txt - Daftar Menu ITools Launcher
+# Format: Nomor|Nama Menu|Nama File di folder Tools|Tipe
+# Tipe yang didukung: bat  atau  ps1
+# Baris yang diawali # akan diabaikan
+# ============================================================
+
+1|Backup Data|backup.bat|bat
+2|Generate Report|report.ps1|ps1
+3|Extract Archive|extract.bat|bat
+4|System Cleanup|cleanup.bat|bat
+5|Update Tools|update.ps1|ps1
+6|Kelola Driver Printer|printer_menu.ps1|ps1
