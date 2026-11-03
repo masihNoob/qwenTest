@@ -5,17 +5,13 @@ color 0A
 
 set "BOOTSTRAP_SETTINGS_LAN=\\localhost\itool$\settings.ini"
 set "BOOTSTRAP_SETTINGS_HTTP=http://localhost/files/public/settings.ini"
-set "BOOTSTRAP_VERSION_LAN=\\localhost\itool$\version.txt"
-set "BOOTSTRAP_VERSION_HTTP=http://localhost/files/public/version.txt"
-set "BOOTSTRAP_LAUNCHER_LAN=\\localhost\itool$\launcher.bat"
-set "BOOTSTRAP_LAUNCHER_HTTP=http://localhost/files/public/launcher.bat"
 
 set "LOCAL_VERSION=1.2.0"
 
-set "LOCAL_DIR=%LOCALAPPDATA%\ITools"
-set "LOCAL_BAT=%LOCAL_DIR%\launcher.bat"
-set "LOCAL_SETTINGS=%LOCAL_DIR%\settings.ini"
-set "WORK_DIR=%TEMP%\ITools_Work"
+REM Jalankan file ini sebagai Administrator (klik kanan -> Run as administrator).
+REM Launcher berjalan langsung dari lokasi file; tidak ada salinan ke TEMP/LocalAppData.
+set "LAUNCHER_DIR=%~dp0"
+set "LAUNCHER_BAT=%~f0"
 
 set "TEMP_DIR="
 set "PRIVATE_DIR="
@@ -26,88 +22,20 @@ set "HTTP_PASS="
 set "AUTH_USER="
 set "AUTH_PASS="
 
-if not exist "%LOCAL_DIR%" mkdir "%LOCAL_DIR%" >nul 2>&1
-
-if /i not "%~f0"=="%LOCAL_BAT%" (
-    copy /y "%~f0" "%LOCAL_BAT%" >nul 2>&1
-    if not exist "%LOCAL_BAT%" (
-        echo [ERROR] Gagal menyalin launcher ke "%LOCAL_DIR%"
-        pause
-        exit /b 1
-    )
-    start "" /D "%LOCAL_DIR%" "%LOCAL_BAT%"
-    exit /b 0
-)
-
-cd /d "%LOCAL_DIR%" >nul 2>&1
+cd /d "%LAUNCHER_DIR%" >nul 2>&1
 
 :elev_check
 net session >nul 2>&1
-if %errorLevel% equ 0 goto :check_version
-echo [INFO] Meminta hak Administrator...
-powershell -NoProfile -Command "Start-Process -FilePath '%LOCAL_BAT%' -WorkingDirectory '%LOCAL_DIR%' -Verb RunAs"
-exit /b 0
-
-:check_version
-echo [INFO] Cek versi launcher...
-echo        Lokal : %LOCAL_VERSION%
-set "REMOTE_VERSION="
-set "VERSION_FILE=%LOCAL_DIR%\version.txt"
-set "UPDATE_NEEDED=0"
-
-if exist "%VERSION_FILE%" del /f /q "%VERSION_FILE%" >nul 2>&1
-
-if exist "%BOOTSTRAP_VERSION_LAN%" (
-    copy /y "%BOOTSTRAP_VERSION_LAN%" "%VERSION_FILE%" >nul 2>&1
-)
-if not exist "%VERSION_FILE%" (
-    powershell -NoProfile -Command "try { Invoke-WebRequest -Uri '%BOOTSTRAP_VERSION_HTTP%' -OutFile '%VERSION_FILE%' -UseBasicParsing -TimeoutSec 15; exit 0 } catch { exit 1 }" >nul 2>&1
-)
-if exist "%VERSION_FILE%" (
-    for /f "usebackq tokens=1 delims= " %%v in ("%VERSION_FILE%") do (
-        if not defined REMOTE_VERSION set "REMOTE_VERSION=%%v"
-    )
-)
-
-if not defined REMOTE_VERSION (
-    echo [WARN] Tidak bisa cek versi remote. Lanjut versi lokal.
-    goto :get_settings
-)
-
-echo        Remote: !REMOTE_VERSION!
-powershell -NoProfile -Command "try { if ([version]'!REMOTE_VERSION!' -gt [version]'%LOCAL_VERSION%') { exit 10 } else { exit 0 } } catch { exit 2 }"
-set "VC=!errorLevel!"
-if "!VC!"=="10" set "UPDATE_NEEDED=1"
-if "!VC!"=="2" (
-    echo [WARN] Format versi tidak valid. Lanjut tanpa update.
-    goto :get_settings
-)
-if "!UPDATE_NEEDED!"=="0" (
-    echo [OK] Launcher sudah versi terbaru.
-    goto :get_settings
-)
-
-echo [INFO] Versi baru tersedia. Mengunduh launcher...
-set "NEW_BAT=%LOCAL_DIR%\launcher.new.bat"
-if exist "%NEW_BAT%" del /f /q "%NEW_BAT%" >nul 2>&1
-if exist "%BOOTSTRAP_LAUNCHER_LAN%" copy /y "%BOOTSTRAP_LAUNCHER_LAN%" "%NEW_BAT%" >nul 2>&1
-if not exist "%NEW_BAT%" (
-    powershell -NoProfile -Command "try { Invoke-WebRequest -Uri '%BOOTSTRAP_LAUNCHER_HTTP%' -OutFile '%NEW_BAT%' -UseBasicParsing -TimeoutSec 30; exit 0 } catch { exit 1 }" >nul 2>&1
-)
-if not exist "%NEW_BAT%" (
-    echo [WARN] Gagal unduh launcher baru. Lanjut versi lama.
-    goto :get_settings
-)
-copy /y "%NEW_BAT%" "%LOCAL_BAT%" >nul 2>&1
-del /f /q "%NEW_BAT%" >nul 2>&1
-echo [OK] Diupdate ke !REMOTE_VERSION!. Merestart...
-timeout /t 2 >nul
-start "" /D "%LOCAL_DIR%" "%LOCAL_BAT%"
-exit /b 0
+if %errorLevel% equ 0 goto :get_settings
+echo [ERROR] Aplikasi ini membutuhkan hak Administrator.
+echo         Klik kanan pada launcher.bat dan pilih "Run as administrator",
+echo         atau buka Command Prompt sebagai Administrator lalu jalankan file ini.
+pause
+exit /b 1
 
 :get_settings
-cd /d "%LOCAL_DIR%" >nul 2>&1
-set "SETTINGS_FILE=%LOCAL_SETTINGS%"
+cd /d "%LAUNCHER_DIR%" >nul 2>&1
+set "SETTINGS_FILE=%LAUNCHER_DIR%settings.ini"
 set "GOT_SETTINGS=0"
 set "SETTINGS_SOURCE="
 set "SERVER_LAN="
@@ -152,7 +80,7 @@ set "CONFIG_FILE=!PRIVATE_DIR!\Config.txt"
 set "HTTP_PRIVATE=!SERVER_HTTP!/!PRIVATE_HTTP!"
 set "HTTP_CONFIG=!HTTP_PRIVATE!/Config.txt"
 set "HTTP_TOOLS=!HTTP_PRIVATE!/Tools"
-set "TEMP_DIR=%LOCAL_DIR%\cache"
+set "TEMP_DIR=%LAUNCHER_DIR%cache"
 set "LOCAL_CONFIG=%TEMP_DIR%\Config.txt"
 set "LOCAL_TOOLS=%TEMP_DIR%\Tools"
 set "LOCAL_DATA=%TEMP_DIR%\Data"
@@ -187,7 +115,7 @@ for /f "usebackq tokens=1,* delims== eol=#" %%a in ("%SF%") do (
 goto :eof
 
 :auth
-cd /d "%LOCAL_DIR%" >nul 2>&1
+cd /d "%LAUNCHER_DIR%" >nul 2>&1
 cls
 echo ========================================
 echo        ITools - Autentikasi SMB
@@ -284,7 +212,7 @@ if not exist "!CONFIG_FILE!" (
 )
 
 :menu
-cd /d "%LOCAL_DIR%" >nul 2>&1
+cd /d "%LAUNCHER_DIR%" >nul 2>&1
 if not exist "!CONFIG_FILE!" (
     if /i "!ACCESS_MODE!"=="HTTP" (
         echo [INFO] Config hilang, unduh ulang...
@@ -304,7 +232,7 @@ echo ========================================
 echo  Ver  : %LOCAL_VERSION%
 if defined AUTH_USER (echo  User : !AUTH_USER!) else (echo  User : !HTTP_USER! [HTTP])
 echo  Mode : !ACCESS_MODE!
-echo  Home : %LOCAL_DIR%
+echo  Home : %LAUNCHER_DIR%
 echo ========================================
 echo.
 
@@ -391,12 +319,7 @@ if /i "!exe_type!"=="bat" cmd.exe /c call "!exe_path!"
 if /i "!exe_type!"=="ps1" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "!exe_path!"
 
 :after_run
-cd /d "%LOCAL_DIR%" >nul 2>&1
-if not exist "%LOCAL_BAT%" (
-    echo [ERROR] Launcher hilang dari "%LOCAL_DIR%"
-    pause
-    exit /b 1
-)
+cd /d "%LAUNCHER_DIR%" >nul 2>&1
 echo.
 echo [INFO] Selesai.
 pause
@@ -419,7 +342,7 @@ goto :eof
 :cleanup_and_exit
 echo.
 echo [INFO] Membersihkan sesi (credential + work temp)...
-cd /d "%LOCAL_DIR%" >nul 2>&1
+cd /d "%LAUNCHER_DIR%" >nul 2>&1
 
 if defined PRIVATE_DIR net use "!PRIVATE_DIR!" /delete /y >nul 2>&1
 if defined SERVER_LAN (
@@ -428,14 +351,13 @@ if defined SERVER_LAN (
     )
 )
 
-if defined TEMP_DIR if exist "!TEMP_DIR!" rd /s /q "!TEMP_DIR%" >nul 2>&1
-if exist "%WORK_DIR%" rd /s /q "%WORK_DIR%" >nul 2>&1
+if defined TEMP_DIR if exist "!TEMP_DIR!" rd /s /q "!TEMP_DIR!" >nul 2>&1
 
 set "AUTH_USER="
 set "AUTH_PASS="
 set "HTTP_USER="
 set "HTTP_PASS="
-echo [INFO] Selesai. Launcher tetap di: %LOCAL_DIR%
+echo [INFO] Selesai. Launcher tetap di: %LAUNCHER_DIR%
 timeout /t 1 >nul
 endlocal
 exit /b 0
