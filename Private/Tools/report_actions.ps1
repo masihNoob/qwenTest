@@ -1,11 +1,12 @@
-# ============================================================
-# report_actions.ps1 - aksi generate system report
-# Dipanggil dari report_menu.ps1 dengan -Action
-# ============================================================
+# report_actions.ps1 - Modul aksi generate system report (dot-source-able, TIDAK auto-run)
+# Cara pakai:
+#   1) Dari menu (in-process): . .\report_actions.ps1 ; Invoke-ReportAction -Action "full"
+#   2) CLI standalone: powershell -File report_actions.ps1 -Action full
 
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $false)]
     [ValidateSet(
+        "",
         "full",
         "identity",
         "hardware",
@@ -13,7 +14,7 @@ param(
         "battery",
         "open-folder"
     )]
-    [string]$Action
+    [string]$Action = ""
 )
 
 $ErrorActionPreference = "SilentlyContinue"

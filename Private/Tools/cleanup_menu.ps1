@@ -4,6 +4,12 @@ $ProgressPreference = "SilentlyContinue"
 $ScriptDir     = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ActionsScript = Join-Path $ScriptDir "cleanup_actions.ps1"
 
+# Muat modul aksi IN-PROCESS via dot-source (tanpa child process baru).
+# Ini menghilangkan rantai proses powershell->powershell yang memicu SONAR.
+if (Test-Path -LiteralPath $ActionsScript) {
+    . $ActionsScript
+}
+
 function Write-Info([string]$msg) { Write-Host "[INFO] $msg" -ForegroundColor Cyan }
 function Write-Ok([string]$msg)   { Write-Host "[OK]   $msg" -ForegroundColor Green }
 function Write-Err([string]$msg)  { Write-Host "[ERROR] $msg" -ForegroundColor Red }
@@ -39,13 +45,16 @@ function Invoke-CleanupAction {
     Write-Info ("Menjalankan aksi: {0}" -f $Action)
     Write-Host ""
 
-    $argList = @(
-        "-NoProfile",
-        "-ExecutionPolicy", "Bypass",
-        "-File", $ActionsScript,
-        "-Action", $Action
-    )
-    & powershell.exe @argList
+    # Pemanggilan in-process: tidak ada spawn powershell.exe anak.
+    # Fungsi Invoke-Cleanup tersedia dari dot-source di awal skrip.
+    if (Get-Command -Name "Invoke-Cleanup" -ErrorAction SilentlyContinue) {
+        $null = Invoke-Cleanup -Action $Action
+    } else {
+        # Fallback aman bila dot-source gagal (mis. file companion berubah)
+        Write-Warn-Host "Modul aksi belum termuat, memuat ulang..."
+        . $ActionsScript
+        $null = Invoke-Cleanup -Action $Action
+    }
 }
 
 function Confirm-Run {

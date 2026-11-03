@@ -1,7 +1,15 @@
+# backup_actions.ps1 - Modul aksi backup/restore (dot-source-able, TIDAK auto-run)
+# Cara pakai:
+#   1) Dari menu (in-process, tanpa child process):
+#        . .\backup_actions.ps1
+#        Invoke-BackupAction -SourceRoot ... -Destination ... -Username ...
+#   2) CLI standalone (opsional, untuk debugging):
+#        powershell -File backup_actions.ps1 -Action Backup -SourceRoot ... -Destination ...
+
 param(
-    [Parameter(Mandatory = $true)]
-    [ValidateSet("Backup", "Restore")]
-    [string]$Action,
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("Backup", "Restore", "")]
+    [string]$Action = "",
 
     [string]$SourceRoot = "",
     [string]$Destination = "",
@@ -366,21 +374,28 @@ function Invoke-RestoreAction {
     return 0
 }
 
-switch ($Action) {
-    "Backup" {
-        if ([string]::IsNullOrWhiteSpace($SourceRoot) -or [string]::IsNullOrWhiteSpace($Destination)) {
-            Write-Host "[ERROR] Backup memerlukan -SourceRoot dan -Destination" -ForegroundColor Red
-            exit 1
+# ============================================================
+# CLI entry point HANYA jika dijalankan standalone dengan -Action.
+# Saat di-dot-source dari menu, skrip TIDAK boleh auto-run / exit,
+# karena exit akan menghentikan proses induk (menu).
+# ============================================================
+if ($PSBoundParameters.ContainsKey('Action') -and -not [string]::IsNullOrWhiteSpace($Action)) {
+    switch ($Action) {
+        "Backup" {
+            if ([string]::IsNullOrWhiteSpace($SourceRoot) -or [string]::IsNullOrWhiteSpace($Destination)) {
+                Write-Host "[ERROR] Backup memerlukan -SourceRoot dan -Destination" -ForegroundColor Red
+                exit 1
+            }
+            $code = Invoke-BackupAction -SourceRoot $SourceRoot -Destination $Destination -Username $Username
+            exit $code
         }
-        $code = Invoke-BackupAction -SourceRoot $SourceRoot -Destination $Destination -Username $Username
-        exit $code
-    }
-    "Restore" {
-        if ([string]::IsNullOrWhiteSpace($BackupPath) -or [string]::IsNullOrWhiteSpace($DestRoot)) {
-            Write-Host "[ERROR] Restore memerlukan -BackupPath dan -DestRoot" -ForegroundColor Red
-            exit 1
+        "Restore" {
+            if ([string]::IsNullOrWhiteSpace($BackupPath) -or [string]::IsNullOrWhiteSpace($DestRoot)) {
+                Write-Host "[ERROR] Restore memerlukan -BackupPath dan -DestRoot" -ForegroundColor Red
+                exit 1
+            }
+            $code = Invoke-RestoreAction -BackupPath $BackupPath -DestRoot $DestRoot -ImportRegistry:$ImportRegistry
+            exit $code
         }
-        $code = Invoke-RestoreAction -BackupPath $BackupPath -DestRoot $DestRoot -ImportRegistry:$ImportRegistry
-        exit $code
     }
 }

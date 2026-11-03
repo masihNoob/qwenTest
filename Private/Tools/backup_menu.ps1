@@ -5,6 +5,12 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ActionsScript = Join-Path $ScriptDir "backup_actions.ps1"
 $DefaultBackupRoot = "D:\Backup"
 
+# Muat modul aksi IN-PROCESS via dot-source (tanpa child process powershell.exe).
+# Menghilangkan rantai proses powershell->powershell yang memicu deteksi SONAR.
+if (Test-Path -LiteralPath $ActionsScript) {
+    . $ActionsScript
+}
+
 function Show-Header {
     param ([string]$Title)
     Clear-Host
@@ -117,16 +123,12 @@ function Invoke-BackupActions {
         Write-Host "[ERROR] backup_actions.ps1 tidak ditemukan: $ActionsScript" -ForegroundColor Red
         return
     }
-    $argList = @(
-        "-NoProfile",
-        "-ExecutionPolicy", "Bypass",
-        "-File", $ActionsScript,
-        "-Action", "Backup",
-        "-SourceRoot", $SourceRoot,
-        "-Destination", $Destination,
-        "-Username", $Username
-    )
-    & powershell.exe @argList
+    # Pemanggilan in-process: fungsi tersedia dari dot-source di awal skrip.
+    # Tidak ada spawn powershell.exe anak.
+    if (-not (Get-Command -Name "Invoke-BackupAction" -ErrorAction SilentlyContinue)) {
+        . $ActionsScript
+    }
+    $null = Invoke-BackupAction -SourceRoot $SourceRoot -Destination $Destination -Username $Username
 }
 
 function Invoke-RestoreActions {
@@ -139,16 +141,10 @@ function Invoke-RestoreActions {
         Write-Host "[ERROR] backup_actions.ps1 tidak ditemukan: $ActionsScript" -ForegroundColor Red
         return
     }
-    $argList = @(
-        "-NoProfile",
-        "-ExecutionPolicy", "Bypass",
-        "-File", $ActionsScript,
-        "-Action", "Restore",
-        "-BackupPath", $BackupPath,
-        "-DestRoot", $DestRoot
-    )
-    if ($ImportRegistry) { $argList += "-ImportRegistry" }
-    & powershell.exe @argList
+    if (-not (Get-Command -Name "Invoke-RestoreAction" -ErrorAction SilentlyContinue)) {
+        . $ActionsScript
+    }
+    $null = Invoke-RestoreAction -BackupPath $BackupPath -DestRoot $DestRoot -ImportRegistry:$ImportRegistry
 }
 
 function Start-BackupMenu {

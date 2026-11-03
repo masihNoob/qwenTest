@@ -1,5 +1,13 @@
+# cleanup_actions.ps1 - Modul aksi cleanup (dot-source-able, TIDAK auto-run)
+# Cara pakai:
+#   1) Dari menu (in-process, tanpa child process):
+#        . .\cleanup_actions.ps1
+#        Invoke-Cleanup -Action "full"
+#   2) CLI standalone (opsional, untuk debugging):
+#        powershell -File cleanup_actions.ps1 -Action full
+
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $false)]
     [string]$Action
 )
 
@@ -60,17 +68,14 @@ function Remove-FolderContents {
     Write-Host (" `r  [..] {0,-42} menghapus... " -f $Label) -NoNewline
 
     $ok = $false
+    # Native PowerShell only (tanpa spawn cmd.exe -> menghindari heuristik SONAR)
     try {
-        $null = cmd /c "del /f /s /q `"$Path\*`" >nul 2>&1"
         Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue | ForEach-Object {
             $full = $_.FullName
             if (Test-RecyclePath -FullName $full) { return }
             try {
                 if ($_.PSIsContainer) {
-                    cmd /c "rd /s /q `"$full`" >nul 2>&1"
-                    if (Test-Path -LiteralPath $full) {
-                        Remove-Item -LiteralPath $full -Recurse -Force -ErrorAction SilentlyContinue
-                    }
+                    Remove-Item -LiteralPath $full -Recurse -Force -ErrorAction SilentlyContinue
                 } else {
                     Remove-Item -LiteralPath $full -Force -ErrorAction SilentlyContinue
                 }
@@ -323,66 +328,93 @@ function Clean-Dns {
     return 0L
 }
 
-$valid = @{
-    "full"          = $true
-    "user-temp"     = $true
-    "windows-temp"  = $true
-    "update-cache"  = $true
-    "logs"          = $true
-    "browser"       = $true
-    "dns"           = $true
-    "status"        = $true
-}
+# ============================================================
+# PUBLIC API: Invoke-Cleanup
+# Fungsi ini bisa dipanggil in-process setelah dot-source:
+#   . .\cleanup_actions.ps1
+#   Invoke-Cleanup -Action "full"
+# Tidak ada spawn child process, tidak ada exit.
+# ============================================================
+function Invoke-Cleanup {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Action
+    )
 
-$requested = @($Action -split '[,; ]+' | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ })
-if ($requested.Count -eq 0) {
-    Write-Host "[ERROR] -Action kosong." -ForegroundColor Red
-    exit 1
-}
+    $valid = @{
+        "full"          = $true
+        "user-temp"     = $true
+        "windows-temp"  = $true
+        "update-cache"  = $true
+        "logs"          = $true
+        "browser"       = $true
+        "dns"           = $true
+        "status"        = $true
+    }
 
-$unknown = @($requested | Where-Object { -not $valid.ContainsKey($_) })
-if ($unknown.Count -gt 0) {
-    Write-Host ("[ERROR] Action tidak dikenal: {0}" -f ($unknown -join ", ")) -ForegroundColor Red
-    Write-Host "Gunakan: full, user-temp, windows-temp, update-cache, logs, browser, dns, status"
-    exit 1
-}
+    $requested = @($Action -split '[,; ]+' | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ })
+    if ($requested.Count -eq 0) {
+        Write-Host "[ERROR] -Action kosong." -ForegroundColor Red
+        return $false
+    }
 
-if ($requested.Count -eq 1 -and $requested[0] -eq "status") {
-    Show-DiskSpace
-    exit 0
-}
+    $unknown = @($requested | Where-Object { -not $valid.ContainsKey($_) })
+    if ($unknown.Count -gt 0) {
+        Write-Host ("[ERROR] Action tidak dikenal: {0}" -f ($unknown -join ", ")) -ForegroundColor Red
+        Write-Host "Gunakan: full, user-temp, windows-temp, update-cache, logs, browser, dns, status"
+        return $false
+    }
 
-$grand = 0L
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
+    if ($requested.Count -eq 1 -and $requested[0] -eq "status") {
+        Show-DiskSpace
+        return $true
+    }
 
-foreach ($act in $requested) {
-    switch ($act) {
-        "status"       { Show-DiskSpace }
-        "user-temp"    { $grand += Clean-UserTemp }
-        "windows-temp" { $grand += Clean-WindowsTemp }
-        "update-cache" { $grand += Clean-UpdateCache }
-        "logs"         { $grand += Clean-LogsAndReports }
-        "browser"      { $grand += Clean-BrowserCache }
-        "dns"          { $null  = Clean-Dns }
-        "full" {
-            $grand += Clean-UserTemp
-            $grand += Clean-WindowsTemp
-            $grand += Clean-UpdateCache
-            $grand += Clean-LogsAndReports
-            $grand += Clean-BrowserCache
-            $null   = Clean-Dns
+    $grand = 0L
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+
+    foreach ($act in $requested) {
+        switch ($act) {
+            "status"       { Show-DiskSpace }
+            "user-temp"    { $grand += Clean-UserTemp }
+            "windows-temp" { $grand += Clean-WindowsTemp }
+            "update-cache" { $grand += Clean-UpdateCache }
+            "logs"         { $grand += Clean-LogsAndReports }
+            "browser"      { $grand += Clean-BrowserCache }
+            "dns"          { $null  = Clean-Dns }
+            "full" {
+                $grand += Clean-UserTemp
+                $grand += Clean-WindowsTemp
+                $grand += Clean-UpdateCache
+                $grand += Clean-LogsAndReports
+                $grand += Clean-BrowserCache
+                $null   = Clean-Dns
+            }
         }
     }
+
+    $sw.Stop()
+
+    Write-Host ""
+    Write-Host "========================================================" -ForegroundColor Cyan
+    Write-Host ("  SELESAI. Total ruang dibebaskan : {0}" -f (Format-Size $grand)) -ForegroundColor Green
+    Write-Host ("  Waktu eksekusi                 : {0:N1} detik" -f $sw.Elapsed.TotalSeconds) -ForegroundColor Gray
+    Write-Host "========================================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Catatan: Recycle Bin TIDAK disentuh." -ForegroundColor Gray
+    Show-DiskSpace
+    return $true
 }
 
-$sw.Stop()
-
-Write-Host ""
-Write-Host "========================================================" -ForegroundColor Cyan
-Write-Host ("  SELESAI. Total ruang dibebaskan : {0}" -f (Format-Size $grand)) -ForegroundColor Green
-Write-Host ("  Waktu eksekusi                 : {0:N1} detik" -f $sw.Elapsed.TotalSeconds) -ForegroundColor Gray
-Write-Host "========================================================" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Catatan: Recycle Bin TIDAK disentuh." -ForegroundColor Gray
-Show-DiskSpace
-exit 0
+# ============================================================
+# CLI entry point HANYA jika dijalankan via -File (standalone).
+# Saat di-dot-source dari menu, $MyInvocation.MyCommand.Path
+# tetap terisi tapi skrip TIDAK boleh auto-run / exit,
+# karena akan menghentikan proses induk (menu).
+# Deteksi: dipanggil standalone bila $Action diberikan ATAU
+# dijalankan sebagai file utama dengan argumen.
+# ============================================================
+if ($PSBoundParameters.ContainsKey('Action') -and -not [string]::IsNullOrWhiteSpace($Action)) {
+    $okCli = Invoke-Cleanup -Action $Action
+    exit $(if ($okCli) { 0 } else { 1 })
+}
