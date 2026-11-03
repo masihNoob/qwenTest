@@ -3,8 +3,18 @@ setlocal EnableDelayedExpansion
 title ITools Launcher
 color 0A
 
+REM --- Lokasi bootstrap settings.ini (ubah sesuai server masing-masing) ---
 set "BOOTSTRAP_SETTINGS_LAN=\\localhost\itool$\settings.ini"
 set "BOOTSTRAP_SETTINGS_HTTP=http://localhost/files/public/settings.ini"
+
+REM --- LOCAL MODE: 1 = jalankan launcher tanpa SMB/HTTP sama sekali. ---
+REM     Tools/Config/Data dibaca langsung dari folder di bawah LAUNCHER_DIR
+REM     (struktur ...\Public + ...\Private). Set ke 0 untuk mode server.
+REM     Bisa juga diaktifkan tanpa edit file:
+REM       set ITOOLS_LOCAL=1 && launcher.bat
+set "LOCAL_MODE=0"
+if /i "%ITOOLS_LOCAL%"=="1" set "LOCAL_MODE=1"
+set "LOCAL_PRIVATE_SUBDIR=Private"
 
 set "LOCAL_VERSION=1.2.0"
 
@@ -34,6 +44,7 @@ pause
 exit /b 1
 
 :get_settings
+if "%LOCAL_MODE%"=="1" goto :local_mode
 cd /d "%LAUNCHER_DIR%" >nul 2>&1
 set "SETTINGS_FILE=%LAUNCHER_DIR%settings.ini"
 set "GOT_SETTINGS=0"
@@ -71,7 +82,6 @@ if not defined PRIVATE_HTTP goto :no_settings
 
 echo [OK] Konfigurasi siap (!SETTINGS_SOURCE!).
 timeout /t 1 >nul
-
 set "PUBLIC_DIR=\\!SERVER_LAN!\!PUBLIC_LAN!"
 set "PRIVATE_DIR=\\!SERVER_LAN!\!PRIVATE_LAN!"
 set "TOOLS_DIR=!PRIVATE_DIR!\Tools"
@@ -94,6 +104,37 @@ goto :auth
 echo [ERROR] Konfigurasi tidak ditemukan atau tidak lengkap.
 pause
 goto :cleanup_and_exit
+
+:local_mode
+REM ============================================================
+REM MODE LOKAL - tanpa SMB (share) dan tanpa HTTP (nginx).
+REM Butuh struktur folder:
+REM   <induk>\Public\launcher.bat   (file ini)
+REM   <induk>\Private\Config.txt
+REM   <induk>\Private\Tools\*.ps1 / *.bat
+REM   <induk>\Private\Data\*        (settings.ini, drivers.csv, printers.csv)
+REM Aktifkan dengan mengubah LOCAL_MODE=1 di bagian atas file ini.
+REM ============================================================
+set "ACCESS_MODE=LOCAL"
+set "PRIVATE_DIR=%LAUNCHER_DIR%%LOCAL_PRIVATE_SUBDIR%"
+if not exist "%PRIVATE_DIR%\" (
+    echo [ERROR] Folder Private tidak ditemukan: %PRIVATE_DIR%
+    echo         Letakkan folder Public dan Private dalam satu induk folder yang sama.
+    pause
+    goto :cleanup_and_exit
+)
+set "TOOLS_DIR=%PRIVATE_DIR%\Tools"
+set "DATA_DIR=%PRIVATE_DIR%\Data"
+set "CONFIG_FILE=%PRIVATE_DIR%\Config.txt"
+if not exist "%CONFIG_FILE%" (
+    echo [ERROR] Config.txt tidak ditemukan: %CONFIG_FILE%
+    pause
+    goto :cleanup_and_exit
+)
+if not exist "%TOOLS_DIR%\" mkdir "%TOOLS_DIR%" >nul 2>&1
+if not exist "%DATA_DIR%\" mkdir "%DATA_DIR%" >nul 2>&1
+echo [OK] Mode lokal aktif - share SMB dan HTTP tidak dipakai.
+goto :menu
 
 :read_settings
 set "SF=%~1"
@@ -270,6 +311,18 @@ if /i "!ACCESS_MODE!"=="SMB" (
     set "exe_path=!TOOLS_DIR!\!exe_file!"
     if not exist "!exe_path!" (
         echo [ERROR] File tidak ditemukan.
+        pause
+        goto :menu
+    )
+    if /i "!exe_type!"=="bat" cmd.exe /c call "!exe_path!"
+    if /i "!exe_type!"=="ps1" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "!exe_path!"
+    goto :after_run
+)
+
+if /i "!ACCESS_MODE!"=="LOCAL" (
+    set "exe_path=!TOOLS_DIR!\!exe_file!"
+    if not exist "!exe_path!" (
+        echo [ERROR] File tidak ditemukan: !exe_path!
         pause
         goto :menu
     )

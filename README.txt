@@ -21,6 +21,15 @@ Urutan ambil settings
 1. SETTINGS_LAN (atau \\SERVER_LAN\PUBLIC_LAN\settings.ini)
 2. Jika LAN gagal → unduh SETTINGS_HTTP
 
+Mode lokal (tanpa SMB & tanpa HTTP)
+-----------------------------------
+Set LOCAL_MODE=1 di launcher.bat, atau jalankan:
+  set ITOOLS_LOCAL=1 && launcher.bat
+Launcher membaca Config.txt/Tools/Data langsung dari folder
+Private yang berada satu induk dengan folder Public.
+Tetap butuh hak Administrator, tapi tidak login dan tidak
+menyentuh share maupun nginx.
+
 
 Path kerja Tools/Config
 -----------------------
