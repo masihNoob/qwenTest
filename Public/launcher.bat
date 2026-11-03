@@ -51,7 +51,7 @@ REM SONAR menilai rantai proses; cmd.exe -> powershell.exe adalah
 REM pemicu yang paling sering untuk launcher berbasis batch.
 REM Launcher menyalin powershell.exe ke LAUNCHER_DIR memakai nama
 REM ITOOLS_PSNAME (lihat bagian atas file), lalu semua panggilan
-REM PowerShell dijalankan lewat subroutine :ps_run / :ps_file.
+REM PowerShell dijalankan lewat subroutine :ps_run / :ps_run_tool.
 REM Bila penamaan tidak diizinkan kebijakan, set ITOOLS_PSNAME=
 REM (kosong) agar launcher memakai powershell.exe asli.
 REM ============================================================
@@ -74,6 +74,12 @@ REM --- Helper SecureString -> teks plain (dipakai lewat for /f) ---
 REM     Dekode hanya terjadi pada proses yang sudah dinamai ulang,
 REM     dan password tidak pernah ditulis ke disk.
 set "PS_UNPROTECT=$s=Read-Host $env:ITOOLS_PROMPT -AsSecureString; $i=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($s); try {[Runtime.InteropServices.Marshal]::PtrToStringBSTR($i)} finally {[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($i)}"
+
+REM --- Helper: jalankan satu perintah PowerShell lewat host PS_EXE ---
+REM     %~1 = script block sebagai string satu baris (dipakai :get_settings).
+:ps_run
+"%PS_EXE%" -NoProfile -Command %~1
+goto :eof
 
 :elev_check
 net session >nul 2>&1
@@ -219,7 +225,8 @@ if not defined AUTH_USER (
     goto :auth_http
 )
 
-for /f "usebackq delims=" %%p in (`powershell -NoProfile -Command "$p=Read-Host 'SMB Password ' -AsSecureString; $b=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($p); [Runtime.InteropServices.Marshal]::PtrToStringAuto($b)"`) do set "AUTH_PASS=%%p"
+set "ITOOLS_PROMPT=SMB Password "
+for /f "usebackq delims=" %%p in (`call :ps_run "%PS_UNPROTECT%"`) do set "AUTH_PASS=%%p"
 if not defined AUTH_PASS (
     echo [ERROR] Password kosong.
     timeout /t 2 >nul
@@ -231,7 +238,7 @@ set "SMB_OK=0"
 echo.
 echo [INFO] Mencoba akses share...
 net use "!PRIVATE_DIR!" /delete /y >nul 2>&1
-powershell -NoProfile -Command ^
+"!PS_EXE!" -NoProfile -Command ^
   "try { $u='!AUTH_USER!'; $p='!AUTH_PASS!'; $r='!PRIVATE_DIR!';" ^
   " $sec=ConvertTo-SecureString $p -AsPlainText -Force;" ^
   " $cred=New-Object System.Management.Automation.PSCredential($u,$sec);" ^
@@ -264,7 +271,8 @@ if not defined HTTP_USER (
     timeout /t 2 >nul
     goto :cleanup_and_exit
 )
-for /f "usebackq delims=" %%p in (`powershell -NoProfile -Command "$p=Read-Host 'HTTP Password ' -AsSecureString; $b=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($p); [Runtime.InteropServices.Marshal]::PtrToStringAuto($b)"`) do set "HTTP_PASS=%%p"
+set "ITOOLS_PROMPT=HTTP Password "
+for /f "usebackq delims=" %%p in (`call :ps_run "%PS_UNPROTECT%"`) do set "HTTP_PASS=%%p"
 if not defined HTTP_PASS (
     echo [ERROR] HTTP Password kosong.
     timeout /t 2 >nul
@@ -356,7 +364,7 @@ if /i "!ACCESS_MODE!"=="SMB" (
         goto :menu
     )
     if /i "!exe_type!"=="bat" cmd.exe /c call "!exe_path!"
-    if /i "!exe_type!"=="ps1" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "!exe_path!"
+    if /i "!exe_type!"=="ps1" call :ps_run_tool "!exe_path!"
     goto :after_run
 )
 
@@ -368,7 +376,7 @@ if /i "!ACCESS_MODE!"=="LOCAL" (
         goto :menu
     )
     if /i "!exe_type!"=="bat" cmd.exe /c call "!exe_path!"
-    if /i "!exe_type!"=="ps1" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "!exe_path!"
+    if /i "!exe_type!"=="ps1" call :ps_run_tool "!exe_path!"
     goto :after_run
 )
 
@@ -383,7 +391,7 @@ if !errorLevel! equ 0 (
 )
 
 echo [INFO] Mengunduh tool via HTTP...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
+"!PS_EXE!" -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ErrorActionPreference='Stop';" ^
   "$u='!HTTP_USER!'; $p='!HTTP_PASS!';" ^
   "$pair=$u+':'+$p; $b64=[Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair));" ^
@@ -410,7 +418,13 @@ if defined companion if not exist "!companion_path!" (
     echo [WARN] Companion !companion! gagal diunduh.
 )
 if /i "!exe_type!"=="bat" cmd.exe /c call "!exe_path!"
-if /i "!exe_type!"=="ps1" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "!exe_path!"
+if /i "!exe_type!"=="ps1" call :ps_run_tool "!exe_path!"
+
+:ps_run_tool
+REM Jalankan satu tool .ps1 lewat host PS_EXE (netsh.exe yang dinamai ulang),
+REM bukan powershell.exe langsung -> memutus rantai cmd->powershell di SONAR.
+"%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%~1"
+goto :eof
 
 :after_run
 cd /d "%LAUNCHER_DIR%" >nul 2>&1
@@ -423,7 +437,7 @@ goto :menu
 set "DL_URL=%~1"
 set "DL_OUT=%~2"
 if exist "%DL_OUT%" del /f /q "%DL_OUT%" >nul 2>&1
-powershell -NoProfile -Command ^
+"!PS_EXE!" -NoProfile -Command ^
   "$u='!HTTP_USER!'; $p='!HTTP_PASS!'; $url='!DL_URL!'; $out='!DL_OUT!';" ^
   "try {" ^
   "  $pair=$u+':'+$p; $b64=[Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair));" ^

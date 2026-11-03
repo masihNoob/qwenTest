@@ -592,58 +592,75 @@ function Open-ReportsFolder {
 }
 
 # ============================================================
-# Action dispatch
+# Action dispatcher (dot-source-able, TIDAK auto-run)
 # ============================================================
+# Semua aksi dibungkus dalam fungsi Invoke-ReportAction agar modul ini bisa
+# dimuat in-process oleh report_menu.ps1 lewat dot-source tanpa menjalankan
+# aksi apa pun. Tidak ada child process powershell.exe -> SONAR friendly.
 
-Ensure-ReportDir
+function Invoke-ReportAction {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Action
+    )
 
-switch ($Action) {
-    "full" {
-        Write-Info "Mengumpulkan full system report..."
-        $cs = Collect-Identity
-        Collect-UserDomain -cs $cs
-        $os = Collect-OS
-        Collect-Hardware -cs $cs -os $os
-        Collect-Network
-        Collect-Battery
-        Collect-Printers
-        Collect-Security
-        Save-ReportFiles -Title "ITools Full System Report"
-        Open-ReportsFolder
+    Ensure-ReportDir
+
+    switch ($Action) {
+        "full" {
+            Write-Info "Mengumpulkan full system report..."
+            $cs = Collect-Identity
+            Collect-UserDomain -cs $cs
+            $os = Collect-OS
+            Collect-Hardware -cs $cs -os $os
+            Collect-Network
+            Collect-Battery
+            Collect-Printers
+            Collect-Security
+            Save-ReportFiles -Title "ITools Full System Report"
+            Open-ReportsFolder
+        }
+        "identity" {
+            Write-Info "Mengumpulkan identitas sistem..."
+            $cs = Collect-Identity
+            Collect-UserDomain -cs $cs
+            $null = Collect-OS
+            Save-ReportFiles -Title "ITools Identity Report"
+            Open-ReportsFolder
+        }
+        "hardware" {
+            Write-Info "Mengumpulkan info hardware..."
+            $cs = Get-Safe { Get-CimInstance -ClassName Win32_ComputerSystem }
+            $os = Get-Safe { Get-CimInstance -ClassName Win32_OperatingSystem }
+            Collect-Hardware -cs $cs -os $os
+            Save-ReportFiles -Title "ITools Hardware Report"
+            Open-ReportsFolder
+        }
+        "network" {
+            Write-Info "Mengumpulkan info network..."
+            Collect-Network
+            Save-ReportFiles -Title "ITools Network Report"
+            Open-ReportsFolder
+        }
+        "battery" {
+            Write-Info "Mengumpulkan battery report..."
+            Collect-Battery
+            Save-ReportFiles -Title "ITools Battery Report"
+            Open-ReportsFolder
+        }
+        "open-folder" {
+            Open-ReportsFolder
+        }
+        default {
+            Write-Err ("Aksi tidak dikenal: {0}" -f $Action)
+        }
     }
-    "identity" {
-        Write-Info "Mengumpulkan identitas sistem..."
-        $cs = Collect-Identity
-        Collect-UserDomain -cs $cs
-        $null = Collect-OS
-        Save-ReportFiles -Title "ITools Identity Report"
-        Open-ReportsFolder
-    }
-    "hardware" {
-        Write-Info "Mengumpulkan info hardware..."
-        $cs = Get-Safe { Get-CimInstance -ClassName Win32_ComputerSystem }
-        $os = Get-Safe { Get-CimInstance -ClassName Win32_OperatingSystem }
-        Collect-Hardware -cs $cs -os $os
-        Save-ReportFiles -Title "ITools Hardware Report"
-        Open-ReportsFolder
-    }
-    "network" {
-        Write-Info "Mengumpulkan info network..."
-        Collect-Network
-        Save-ReportFiles -Title "ITools Network Report"
-        Open-ReportsFolder
-    }
-    "battery" {
-        Write-Info "Mengumpulkan battery report..."
-        Collect-Battery
-        Save-ReportFiles -Title "ITools Battery Report"
-        Open-ReportsFolder
-    }
-    "open-folder" {
-        Open-ReportsFolder
-    }
-    default {
-        Write-Err ("Aksi tidak dikenal: {0}" -f $Action)
-        exit 1
-    }
+}
+
+# ============================================================
+# CLI standalone (opsional, hanya untuk debugging manual).
+# Saat di-dot-source dari menu, $Action kosong sehingga blok ini dilewati.
+# ============================================================
+if ($Action -ne "") {
+    Invoke-ReportAction -Action $Action
 }
