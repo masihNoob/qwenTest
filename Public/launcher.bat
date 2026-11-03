@@ -3,47 +3,110 @@ setlocal EnableDelayedExpansion
 title ITools Launcher
 color 0A
 
-:: ============================================================
-:: ITools Launcher
-:: settings: LAN dulu, fallback HTTP
-:: Tools: SMB dulu, fallback HTTP + Basic Auth untuk private
-:: ============================================================
 set "BOOTSTRAP_SETTINGS_LAN=\\localhost\itool$\settings.ini"
 set "BOOTSTRAP_SETTINGS_HTTP=http://localhost/files/public/settings.ini"
+set "BOOTSTRAP_VERSION_LAN=\\localhost\itool$\version.txt"
+set "BOOTSTRAP_VERSION_HTTP=http://localhost/files/public/version.txt"
+set "BOOTSTRAP_LAUNCHER_LAN=\\localhost\itool$\launcher.bat"
+set "BOOTSTRAP_LAUNCHER_HTTP=http://localhost/files/public/launcher.bat"
 
-set "LOCAL_DIR=%TEMP%\ITools_Launcher"
+set "LOCAL_VERSION=1.2.0"
+
+set "LOCAL_DIR=%LOCALAPPDATA%\ITools"
 set "LOCAL_BAT=%LOCAL_DIR%\launcher.bat"
 set "LOCAL_SETTINGS=%LOCAL_DIR%\settings.ini"
+set "WORK_DIR=%TEMP%\ITools_Work"
+
 set "TEMP_DIR="
 set "PRIVATE_DIR="
 set "SERVER_LAN="
 set "ACCESS_MODE="
 set "HTTP_USER="
 set "HTTP_PASS="
+set "AUTH_USER="
+set "AUTH_PASS="
 
-:: ------------------------------------------------------------
-:: 0. Salinan lokal
-:: ------------------------------------------------------------
-if /i "%~f0"=="%LOCAL_BAT%" goto :elev_check
 if not exist "%LOCAL_DIR%" mkdir "%LOCAL_DIR%" >nul 2>&1
-copy /y "%~f0" "%LOCAL_BAT%" >nul 2>&1
-start "" /D "%LOCAL_DIR%" "%LOCAL_BAT%"
-exit /b
 
-:: ------------------------------------------------------------
-:: 1. Elevate
-:: ------------------------------------------------------------
+if /i not "%~f0"=="%LOCAL_BAT%" (
+    copy /y "%~f0" "%LOCAL_BAT%" >nul 2>&1
+    if not exist "%LOCAL_BAT%" (
+        echo [ERROR] Gagal menyalin launcher ke "%LOCAL_DIR%"
+        pause
+        exit /b 1
+    )
+    start "" /D "%LOCAL_DIR%" "%LOCAL_BAT%"
+    exit /b 0
+)
+
+cd /d "%LOCAL_DIR%" >nul 2>&1
+
 :elev_check
 net session >nul 2>&1
-if %errorLevel% equ 0 goto :get_settings
+if %errorLevel% equ 0 goto :check_version
 echo [INFO] Meminta hak Administrator...
 powershell -NoProfile -Command "Start-Process -FilePath '%LOCAL_BAT%' -WorkingDirectory '%LOCAL_DIR%' -Verb RunAs"
-exit /b
+exit /b 0
 
-:: ------------------------------------------------------------
-:: 2. Settings.ini - selalu timpa dari server
-:: ------------------------------------------------------------
+:check_version
+echo [INFO] Cek versi launcher...
+echo        Lokal : %LOCAL_VERSION%
+set "REMOTE_VERSION="
+set "VERSION_FILE=%LOCAL_DIR%\version.txt"
+set "UPDATE_NEEDED=0"
+
+if exist "%VERSION_FILE%" del /f /q "%VERSION_FILE%" >nul 2>&1
+
+if exist "%BOOTSTRAP_VERSION_LAN%" (
+    copy /y "%BOOTSTRAP_VERSION_LAN%" "%VERSION_FILE%" >nul 2>&1
+)
+if not exist "%VERSION_FILE%" (
+    powershell -NoProfile -Command "try { Invoke-WebRequest -Uri '%BOOTSTRAP_VERSION_HTTP%' -OutFile '%VERSION_FILE%' -UseBasicParsing -TimeoutSec 15; exit 0 } catch { exit 1 }" >nul 2>&1
+)
+if exist "%VERSION_FILE%" (
+    for /f "usebackq tokens=1 delims= " %%v in ("%VERSION_FILE%") do (
+        if not defined REMOTE_VERSION set "REMOTE_VERSION=%%v"
+    )
+)
+
+if not defined REMOTE_VERSION (
+    echo [WARN] Tidak bisa cek versi remote. Lanjut versi lokal.
+    goto :get_settings
+)
+
+echo        Remote: !REMOTE_VERSION!
+powershell -NoProfile -Command "try { if ([version]'!REMOTE_VERSION!' -gt [version]'%LOCAL_VERSION%') { exit 10 } else { exit 0 } } catch { exit 2 }"
+set "VC=!errorLevel!"
+if "!VC!"=="10" set "UPDATE_NEEDED=1"
+if "!VC!"=="2" (
+    echo [WARN] Format versi tidak valid. Lanjut tanpa update.
+    goto :get_settings
+)
+if "!UPDATE_NEEDED!"=="0" (
+    echo [OK] Launcher sudah versi terbaru.
+    goto :get_settings
+)
+
+echo [INFO] Versi baru tersedia. Mengunduh launcher...
+set "NEW_BAT=%LOCAL_DIR%\launcher.new.bat"
+if exist "%NEW_BAT%" del /f /q "%NEW_BAT%" >nul 2>&1
+if exist "%BOOTSTRAP_LAUNCHER_LAN%" copy /y "%BOOTSTRAP_LAUNCHER_LAN%" "%NEW_BAT%" >nul 2>&1
+if not exist "%NEW_BAT%" (
+    powershell -NoProfile -Command "try { Invoke-WebRequest -Uri '%BOOTSTRAP_LAUNCHER_HTTP%' -OutFile '%NEW_BAT%' -UseBasicParsing -TimeoutSec 30; exit 0 } catch { exit 1 }" >nul 2>&1
+)
+if not exist "%NEW_BAT%" (
+    echo [WARN] Gagal unduh launcher baru. Lanjut versi lama.
+    goto :get_settings
+)
+copy /y "%NEW_BAT%" "%LOCAL_BAT%" >nul 2>&1
+del /f /q "%NEW_BAT%" >nul 2>&1
+echo [OK] Diupdate ke !REMOTE_VERSION!. Merestart...
+timeout /t 2 >nul
+start "" /D "%LOCAL_DIR%" "%LOCAL_BAT%"
+exit /b 0
+
 :get_settings
+cd /d "%LOCAL_DIR%" >nul 2>&1
 set "SETTINGS_FILE=%LOCAL_SETTINGS%"
 set "GOT_SETTINGS=0"
 set "SETTINGS_SOURCE="
@@ -62,7 +125,6 @@ if exist "%BOOTSTRAP_SETTINGS_LAN%" (
         set "SETTINGS_SOURCE=LAN"
     )
 )
-
 if "!GOT_SETTINGS!"=="0" (
     powershell -NoProfile -Command "try { Invoke-WebRequest -Uri '%BOOTSTRAP_SETTINGS_HTTP%' -OutFile '%SETTINGS_FILE%' -UseBasicParsing -TimeoutSec 20; exit 0 } catch { exit 1 }"
     if exist "%SETTINGS_FILE%" (
@@ -70,7 +132,6 @@ if "!GOT_SETTINGS!"=="0" (
         set "SETTINGS_SOURCE=HTTP"
     )
 )
-
 if "!GOT_SETTINGS!"=="0" goto :no_settings
 
 call :read_settings "%SETTINGS_FILE%"
@@ -80,7 +141,7 @@ if not defined PRIVATE_LAN goto :no_settings
 if not defined SERVER_HTTP goto :no_settings
 if not defined PRIVATE_HTTP goto :no_settings
 
-echo [OK] Konfigurasi siap.
+echo [OK] Konfigurasi siap (!SETTINGS_SOURCE!).
 timeout /t 1 >nul
 
 set "PUBLIC_DIR=\\!SERVER_LAN!\!PUBLIC_LAN!"
@@ -91,14 +152,14 @@ set "CONFIG_FILE=!PRIVATE_DIR!\Config.txt"
 set "HTTP_PRIVATE=!SERVER_HTTP!/!PRIVATE_HTTP!"
 set "HTTP_CONFIG=!HTTP_PRIVATE!/Config.txt"
 set "HTTP_TOOLS=!HTTP_PRIVATE!/Tools"
-set "TEMP_DIR=%TEMP%\ITools_Work"
+set "TEMP_DIR=%LOCAL_DIR%\cache"
 set "LOCAL_CONFIG=%TEMP_DIR%\Config.txt"
 set "LOCAL_TOOLS=%TEMP_DIR%\Tools"
+set "LOCAL_DATA=%TEMP_DIR%\Data"
 
-if exist "%TEMP_DIR%" rd /s /q "%TEMP_DIR%" >nul 2>&1
-mkdir "%TEMP_DIR%" >nul 2>&1
-mkdir "%LOCAL_TOOLS%" >nul 2>&1
-
+if not exist "%TEMP_DIR%" mkdir "%TEMP_DIR%" >nul 2>&1
+if not exist "%LOCAL_TOOLS%" mkdir "%LOCAL_TOOLS%" >nul 2>&1
+if not exist "%LOCAL_DATA%" mkdir "%LOCAL_DATA%" >nul 2>&1
 goto :auth
 
 :no_settings
@@ -125,10 +186,8 @@ for /f "usebackq tokens=1,* delims== eol=#" %%a in ("%SF%") do (
 )
 goto :eof
 
-:: ------------------------------------------------------------
-:: 3. Autentikasi SMB, fallback HTTP + Basic Auth
-:: ------------------------------------------------------------
 :auth
+cd /d "%LOCAL_DIR%" >nul 2>&1
 cls
 echo ========================================
 echo        ITools - Autentikasi SMB
@@ -142,15 +201,15 @@ set "AUTH_PASS="
 set "HTTP_USER="
 set "HTTP_PASS="
 
+echo  Kosongkan username SMB untuk login HTTP.
+echo.
 set /p "AUTH_USER=SMB Username : "
 if not defined AUTH_USER (
-    echo [ERROR] Username kosong.
-    timeout /t 2 >nul
-    goto :cleanup_and_exit
+    echo [INFO] Username SMB kosong - mode HTTP.
+    goto :auth_http
 )
 
 for /f "usebackq delims=" %%p in (`powershell -NoProfile -Command "$p=Read-Host 'SMB Password ' -AsSecureString; $b=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($p); [Runtime.InteropServices.Marshal]::PtrToStringAuto($b)"`) do set "AUTH_PASS=%%p"
-
 if not defined AUTH_PASS (
     echo [ERROR] Password kosong.
     timeout /t 2 >nul
@@ -159,7 +218,6 @@ if not defined AUTH_PASS (
 
 set "ACCESS_MODE="
 set "SMB_OK=0"
-
 echo.
 echo [INFO] Mencoba akses share...
 net use "!PRIVATE_DIR!" /delete /y >nul 2>&1
@@ -170,8 +228,6 @@ powershell -NoProfile -Command ^
   " New-PSDrive -Name IToolsP -PSProvider FileSystem -Root $r -Credential $cred -ErrorAction Stop | Out-Null;" ^
   " net use $r /user:$u $p /persistent:no | Out-Null; exit 0 } catch { exit 1 }"
 if !errorLevel! equ 0 if exist "!PRIVATE_DIR!" set "SMB_OK=1"
-
-:: Hapus password SMB dari memori segera setelah dipakai
 set "AUTH_PASS="
 
 if "!SMB_OK!"=="1" (
@@ -184,12 +240,12 @@ if "!SMB_OK!"=="1" (
 )
 
 echo [INFO] Share tidak tersedia. Beralih ke HTTP private...
+
+:auth_http
 echo.
 echo ========================================
 echo        ITools - Autentikasi HTTP
 echo ========================================
-echo  Akses files/private membutuhkan
-echo  username dan password tersendiri.
 echo.
 
 set /p "HTTP_USER=HTTP Username : "
@@ -198,9 +254,7 @@ if not defined HTTP_USER (
     timeout /t 2 >nul
     goto :cleanup_and_exit
 )
-
 for /f "usebackq delims=" %%p in (`powershell -NoProfile -Command "$p=Read-Host 'HTTP Password ' -AsSecureString; $b=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($p); [Runtime.InteropServices.Marshal]::PtrToStringAuto($b)"`) do set "HTTP_PASS=%%p"
-
 if not defined HTTP_PASS (
     echo [ERROR] HTTP Password kosong.
     timeout /t 2 >nul
@@ -208,20 +262,16 @@ if not defined HTTP_PASS (
 )
 
 set "ACCESS_MODE=HTTP"
-
-:: Unduh Config.txt dengan Basic Auth HTTP terpisah
 call :http_download "!HTTP_CONFIG!" "!LOCAL_CONFIG!"
 if not exist "!LOCAL_CONFIG!" (
     echo [ERROR] Gagal akses private via HTTP.
-    echo         Periksa HTTP user/password atau server.
     set "HTTP_PASS="
     pause
     goto :cleanup_and_exit
 )
-
 set "CONFIG_FILE=!LOCAL_CONFIG!"
 set "TOOLS_DIR=!LOCAL_TOOLS!"
-set "DATA_DIR=!TEMP_DIR!\Data"
+set "DATA_DIR=!LOCAL_DATA!"
 if not exist "!DATA_DIR!" mkdir "!DATA_DIR!" >nul 2>&1
 echo [OK] Mode: HTTP
 
@@ -233,16 +283,28 @@ if not exist "!CONFIG_FILE!" (
     goto :cleanup_and_exit
 )
 
-:: ------------------------------------------------------------
-:: 4. Menu
-:: ------------------------------------------------------------
 :menu
+cd /d "%LOCAL_DIR%" >nul 2>&1
+if not exist "!CONFIG_FILE!" (
+    if /i "!ACCESS_MODE!"=="HTTP" (
+        echo [INFO] Config hilang, unduh ulang...
+        call :http_download "!HTTP_CONFIG!" "!LOCAL_CONFIG!"
+        set "CONFIG_FILE=!LOCAL_CONFIG!"
+    )
+)
+if not exist "!CONFIG_FILE!" (
+    echo [ERROR] Config tidak ditemukan: !CONFIG_FILE!
+    pause
+    goto :cleanup_and_exit
+)
 cls
 echo ========================================
 echo           ITools Launcher
 echo ========================================
-echo  User : !AUTH_USER!
+echo  Ver  : %LOCAL_VERSION%
+if defined AUTH_USER (echo  User : !AUTH_USER!) else (echo  User : !HTTP_USER! [HTTP])
 echo  Mode : !ACCESS_MODE!
+echo  Home : %LOCAL_DIR%
 echo ========================================
 echo.
 
@@ -256,7 +318,6 @@ for /f "usebackq tokens=1,2,3,4 delims=| eol=#" %%a in ("!CONFIG_FILE!") do (
         set "m_%%a_type=%%d"
     )
 )
-
 echo.
 echo   0. Exit
 echo ========================================
@@ -273,7 +334,6 @@ if not defined m_%pilih%_file (
 
 set "exe_file=!m_%pilih%_file!"
 set "exe_type=!m_%pilih%_type!"
-
 echo.
 echo [INFO] Menjalankan: !m_%pilih%_name!
 echo.
@@ -285,33 +345,63 @@ if /i "!ACCESS_MODE!"=="SMB" (
         pause
         goto :menu
     )
-    if /i "!exe_type!"=="bat" call "!exe_path!"
-    if /i "!exe_type!"=="ps1" powershell -NoProfile -ExecutionPolicy Bypass -File "!exe_path!"
+    if /i "!exe_type!"=="bat" cmd.exe /c call "!exe_path!"
+    if /i "!exe_type!"=="ps1" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "!exe_path!"
     goto :after_run
 )
 
-:: Mode HTTP: unduh tool dengan Basic Auth
 set "exe_url=!HTTP_TOOLS!/!exe_file!"
 set "exe_path=!LOCAL_TOOLS!\!exe_file!"
-call :http_download "!exe_url!" "!exe_path!"
+set "companion="
+set "companion_path="
+echo !exe_file! | findstr /i "_menu.ps1" >nul 2>&1
+if !errorLevel! equ 0 (
+    set "companion=!exe_file:_menu.ps1=_actions.ps1!"
+    set "companion_path=!LOCAL_TOOLS!\!companion!"
+)
+
+echo [INFO] Mengunduh tool via HTTP...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference='Stop';" ^
+  "$u='!HTTP_USER!'; $p='!HTTP_PASS!';" ^
+  "$pair=$u+':'+$p; $b64=[Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair));" ^
+  "$hdr=@{Authorization=('Basic '+$b64)};" ^
+  "function Get-One($Url,$Out) {" ^
+  "  if (Test-Path -LiteralPath $Out) { Remove-Item -LiteralPath $Out -Force -EA SilentlyContinue };" ^
+  "  Invoke-WebRequest -Uri $Url -OutFile $Out -Headers $hdr -UseBasicParsing -TimeoutSec 60" ^
+  "};" ^
+  "Get-One '!exe_url!' '!exe_path!';" ^
+  "if ('!companion!' -ne '') { try { Get-One ('!HTTP_TOOLS!'+'/'+'!companion!') '!companion_path!' } catch {} };" ^
+  "if ('!exe_file!' -eq 'printer_menu.ps1') {" ^
+  "  $dd='!DATA_DIR!'; if (-not (Test-Path $dd)) { New-Item -ItemType Directory -Path $dd -Force | Out-Null };" ^
+  "  try { Get-One ('!HTTP_PRIVATE!'+'/Data/settings.ini') (Join-Path $dd 'settings.ini') } catch {};" ^
+  "  try { Get-One ('!HTTP_PRIVATE!'+'/Data/drivers.csv') (Join-Path $dd 'drivers.csv') } catch {};" ^
+  "  try { Get-One ('!HTTP_PRIVATE!'+'/Data/printers.csv') (Join-Path $dd 'printers.csv') } catch {}" ^
+  "}"
+
 if not exist "!exe_path!" (
     echo [ERROR] Gagal mengunduh tool via HTTP.
     pause
     goto :menu
 )
-if /i "!exe_type!"=="bat" call "!exe_path!"
-if /i "!exe_type!"=="ps1" powershell -NoProfile -ExecutionPolicy Bypass -File "!exe_path!"
+if defined companion if not exist "!companion_path!" (
+    echo [WARN] Companion !companion! gagal diunduh.
+)
+if /i "!exe_type!"=="bat" cmd.exe /c call "!exe_path!"
+if /i "!exe_type!"=="ps1" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "!exe_path!"
 
 :after_run
+cd /d "%LOCAL_DIR%" >nul 2>&1
+if not exist "%LOCAL_BAT%" (
+    echo [ERROR] Launcher hilang dari "%LOCAL_DIR%"
+    pause
+    exit /b 1
+)
 echo.
 echo [INFO] Selesai.
 pause
 goto :menu
 
-:: ------------------------------------------------------------
-:: Unduh file HTTP dengan Basic Auth (untuk /files/private)
-:: Usage: call :http_download "URL" "OUTFILE"
-:: ------------------------------------------------------------
 :http_download
 set "DL_URL=%~1"
 set "DL_OUT=%~2"
@@ -319,20 +409,17 @@ if exist "%DL_OUT%" del /f /q "%DL_OUT%" >nul 2>&1
 powershell -NoProfile -Command ^
   "$u='!HTTP_USER!'; $p='!HTTP_PASS!'; $url='!DL_URL!'; $out='!DL_OUT!';" ^
   "try {" ^
-  "  $pair = $u + ':' + $p;" ^
-  "  $b64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair));" ^
-  "  $hdr = @{ Authorization = 'Basic ' + $b64 };" ^
+  "  $pair=$u+':'+$p; $b64=[Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair));" ^
+  "  $hdr=@{ Authorization='Basic '+$b64 };" ^
   "  Invoke-WebRequest -Uri $url -OutFile $out -Headers $hdr -UseBasicParsing -TimeoutSec 30;" ^
   "  exit 0" ^
   "} catch { exit 1 }"
 goto :eof
 
-:: ------------------------------------------------------------
-:: 5. Cleanup
-:: ------------------------------------------------------------
 :cleanup_and_exit
 echo.
-echo [INFO] Membersihkan...
+echo [INFO] Membersihkan sesi (credential + work temp)...
+cd /d "%LOCAL_DIR%" >nul 2>&1
 
 if defined PRIVATE_DIR net use "!PRIVATE_DIR!" /delete /y >nul 2>&1
 if defined SERVER_LAN (
@@ -341,14 +428,14 @@ if defined SERVER_LAN (
     )
 )
 
-if defined TEMP_DIR if exist "!TEMP_DIR!" rd /s /q "!TEMP_DIR!" >nul 2>&1
+if defined TEMP_DIR if exist "!TEMP_DIR!" rd /s /q "!TEMP_DIR%" >nul 2>&1
+if exist "%WORK_DIR%" rd /s /q "%WORK_DIR%" >nul 2>&1
 
 set "AUTH_USER="
 set "AUTH_PASS="
 set "HTTP_USER="
 set "HTTP_PASS="
-echo [INFO] Selesai.
+echo [INFO] Selesai. Launcher tetap di: %LOCAL_DIR%
 timeout /t 1 >nul
-start "" /min cmd /c "timeout /t 2 /nobreak >nul & rd /s /q %TEMP%\ITools_Launcher >nul 2>&1"
 endlocal
 exit /b 0

@@ -1,14 +1,3 @@
-# ============================================================
-# printer_actions.ps1 - eksekusi saja (tanpa menu interaktif koneksi)
-#
-# install:
-#   -ConnType usb|tcpip|share|driveronly
-#   -Address IP atau \\server\share (tcpip/share)
-#   -PrinterName nama di Windows (opsional)
-#   -RelativePath path penuh ke .exe/.msi/.inf (atau relatif ke DriverRoot)
-# modify / uninstall: seperti sebelumnya
-# ============================================================
-
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet("install", "modify", "uninstall")]
@@ -85,15 +74,12 @@ function Connect-DriverShare {
 
 function Test-IsAbsolutePath([string]$p) {
     if ([string]::IsNullOrWhiteSpace($p)) { return $false }
-    # UNC \\server\share\... atau drive letter C:\...
     if ($p.StartsWith("\\")) { return $true }
     if ($p.Length -ge 3 -and $p[1] -eq [char]':' -and ($p[2] -eq [char]'\' -or $p[2] -eq [char]'/')) { return $true }
     return $false
 }
 
 function Get-ResolvedDriverPath {
-    # Path di drivers.csv = path penuh ke .exe / .msi / .inf
-    # Jika relatif, digabung dengan DriverRoot
     $raw = ("{0}" -f $RelativePath).Trim().Trim('"')
     if ([string]::IsNullOrWhiteSpace($raw)) {
         throw "Path driver kosong di database (drivers.csv kolom Path)."
@@ -106,7 +92,6 @@ function Get-ResolvedDriverPath {
 }
 
 function Connect-PackageShare([string]$filePath) {
-    # Map \\server\share jika path UNC belum accessible
     if (-not $filePath.StartsWith("\\")) { return }
     if (Test-Path -LiteralPath $filePath) { return }
 
@@ -125,9 +110,6 @@ function Connect-PackageShare([string]$filePath) {
 }
 
 function Install-DriverPackage {
-    # 1) Resolve path dari drivers.csv
-    # 2) Map share jika perlu
-    # 3) Eksekusi langsung .exe / .msi / .inf (tanpa scan folder)
     $full = Get-ResolvedDriverPath
     Connect-PackageShare -filePath $full
 
@@ -319,7 +301,6 @@ function Uninstall-PrinterRelated([string]$printerName) {
     }
 }
 
-# --- MAIN ---
 try {
     Write-Host ""
     Write-Host "========================================" -ForegroundColor Green
@@ -333,8 +314,6 @@ try {
     if ($Action -eq "uninstall") {
         Uninstall-PrinterRelated -printerName $Name
     } else {
-        # Path penuh ke .exe/.msi/.inf ada di -RelativePath (dari drivers.csv kolom Path)
-        # DriverRoot hanya dipakai jika Path di CSV relatif
         if (-not (Test-IsAbsolutePath -p $RelativePath)) {
             Ensure-DriverRoot
             Connect-DriverShare

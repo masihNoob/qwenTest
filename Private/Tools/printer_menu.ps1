@@ -1,8 +1,3 @@
-# ============================================================
-# printer_menu.ps1 - load data from CSV (Data folder)
-# settings.ini | drivers.csv | printers.csv
-# ============================================================
-
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -129,14 +124,12 @@ function Get-ActiveTargets {
     foreach ($t in $Targets) {
         if ($t.Status -eq "active") { [void]$list.Add($t) }
     }
-    # Pipeline unroll + caller @() = array datar
     return $list.ToArray()
 }
 
 function Select-DepartmentFilter {
     param($items)
 
-    # Pastikan selalu array datar (hindari nested Object[])
     $arr = @($items)
     if ($arr.Count -eq 1 -and $arr[0] -is [System.Array]) {
         $arr = @($arr[0])
@@ -177,14 +170,12 @@ function Select-DepartmentFilter {
         if ([string]::IsNullOrWhiteSpace($d)) { $d = "(tanpa dept)" }
         if ($d -eq $chosen) { [void]$result.Add($t) }
     }
-    # Pipeline unroll + caller @() = array datar
     return $result.ToArray()
 }
 
 function Select-TargetFromList {
     param($items)
 
-    # Flatten satu level jika nested array (hindari System.Object[])
     $arr = @($items)
     if ($arr.Count -eq 1 -and $arr[0] -is [System.Array]) {
         $arr = @($arr[0])
@@ -198,7 +189,6 @@ function Select-TargetFromList {
     Write-Host "Pilih target:" -ForegroundColor Cyan
     for ($i = 0; $i -lt $arr.Count; $i++) {
         $t = $arr[$i]
-        # Guard: skip jika elemen masih array (data corrupt)
         if ($t -is [System.Array]) { continue }
         $typeLabel = ("{0}" -f $t.Type).ToUpper()
         $extra = @()
@@ -332,7 +322,6 @@ function Start-InstallFlow {
     }
 }
 
-# --- MAIN ---
 try {
     if (-not (Test-Path -LiteralPath $ActionsScript)) {
         Write-Err ("printer_actions.ps1 tidak ditemukan: {0}" -f $ActionsScript)
