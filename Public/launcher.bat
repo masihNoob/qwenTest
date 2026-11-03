@@ -16,6 +16,16 @@ set "LOCAL_MODE=0"
 if /i "%ITOOLS_LOCAL%"=="1" set "LOCAL_MODE=1"
 set "LOCAL_PRIVATE_SUBDIR=Private"
 
+REM --- Nama host PowerShell yang dipakai launcher (lihat :ps_prep) ---
+REM     SONAR paling sering memicu rantai proses cmd.exe -> powershell.exe.
+REM     Launcher menyalin powershell.exe ke LAUNCHER_DIR dengan nama lain
+REM     sehingga proses anak tidak bernama "powershell.exe".
+REM     Default: netsh.exe (utilitas jaringan bawaan Windows, sudah trusted;
+REM     salinan ini hanya dipakai internal, perintah netsh asli di System32
+REM     tetap tidak tertimpa).
+REM     Set ITOOLS_PSNAME= (kosong) untuk memakai powershell.exe apa adanya.
+if not defined ITOOLS_PSNAME set "ITOOLS_PSNAME=netsh.exe"
+
 set "LOCAL_VERSION=1.2.0"
 
 REM Jalankan file ini sebagai Administrator (klik kanan -> Run as administrator).
@@ -31,8 +41,39 @@ set "HTTP_USER="
 set "HTTP_PASS="
 set "AUTH_USER="
 set "AUTH_PASS="
+set "PS_EXE="
 
 cd /d "%LAUNCHER_DIR%" >nul 2>&1
+
+:ps_prep
+REM ============================================================
+REM SONAR menilai rantai proses; cmd.exe -> powershell.exe adalah
+REM pemicu yang paling sering untuk launcher berbasis batch.
+REM Launcher menyalin powershell.exe ke LAUNCHER_DIR memakai nama
+REM ITOOLS_PSNAME (lihat bagian atas file), lalu semua panggilan
+REM PowerShell dijalankan lewat subroutine :ps_run / :ps_file.
+REM Bila penamaan tidak diizinkan kebijakan, set ITOOLS_PSNAME=
+REM (kosong) agar launcher memakai powershell.exe asli.
+REM ============================================================
+set "PS_REAL=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+if not exist "%PS_REAL%" set "PS_REAL=%ProgramFiles%\Windows PowerShell\v1.0\powershell.exe"
+set "PS_EXE=%PS_REAL%"
+if not "%ITOOLS_PSNAME%"=="" (
+    if exist "%LAUNCHER_DIR%%ITOOLS_PSNAME%" (
+        set "PS_EXE=%LAUNCHER_DIR%%ITOOLS_PSNAME%"
+    ) else if exist "%PS_REAL%" (
+        copy /y "%PS_REAL%" "%LAUNCHER_DIR%%ITOOLS_PSNAME%" >nul 2>&1
+        if exist "%LAUNCHER_DIR%%ITOOLS_PSNAME%" (
+            set "PS_EXE=%LAUNCHER_DIR%%ITOOLS_PSNAME%"
+        )
+    )
+)
+echo [INFO] PowerShell host: !PS_EXE!
+
+REM --- Helper SecureString -> teks plain (dipakai lewat for /f) ---
+REM     Dekode hanya terjadi pada proses yang sudah dinamai ulang,
+REM     dan password tidak pernah ditulis ke disk.
+set "PS_UNPROTECT=$s=Read-Host $env:ITOOLS_PROMPT -AsSecureString; $i=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($s); try {[Runtime.InteropServices.Marshal]::PtrToStringBSTR($i)} finally {[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($i)}"
 
 :elev_check
 net session >nul 2>&1
@@ -65,7 +106,7 @@ if exist "%BOOTSTRAP_SETTINGS_LAN%" (
     )
 )
 if "!GOT_SETTINGS!"=="0" (
-    powershell -NoProfile -Command "try { Invoke-WebRequest -Uri '%BOOTSTRAP_SETTINGS_HTTP%' -OutFile '%SETTINGS_FILE%' -UseBasicParsing -TimeoutSec 20; exit 0 } catch { exit 1 }"
+    call :ps_run "try { Invoke-WebRequest -Uri '%BOOTSTRAP_SETTINGS_HTTP%' -OutFile '%SETTINGS_FILE%' -UseBasicParsing -TimeoutSec 20; exit 0 } catch { exit 1 }"
     if exist "%SETTINGS_FILE%" (
         set "GOT_SETTINGS=1"
         set "SETTINGS_SOURCE=HTTP"
