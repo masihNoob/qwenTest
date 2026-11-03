@@ -1,8 +1,14 @@
--# ============================================================
+# ============================================================
+
+# office_actions.ps1 - Modul aksi Office (dot-source-able, TIDAK auto-run)
+# Cara pakai:
+#   1) Dari menu (in-process): . .\office_actions.ps1 ; Invoke-OfficeAction -Action "status"
+#   2) CLI standalone: powershell -File office_actions.ps1 -Action status
 
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $false)]
     [ValidateSet(
+        "",
         "status",
         "quick-repair",
         "online-repair",
@@ -10,7 +16,7 @@ param(
         "update",
         "add-product"
     )]
-    [string]$Action,
+    [string]$Action = "",
 
     [string]$ProductId = "O365ProPlusRetail",
 
@@ -471,11 +477,46 @@ function Action-AddProduct {
     Invoke-OdtSetup -SetupExe $setup -ConfigXml $xml -Label "Add Product ($product)"
 }
 
-switch ($Action) {
-    "status"        { Action-Status }
-    "quick-repair"  { Action-QuickRepair }
-    "online-repair" { Action-OnlineRepair }
-    "reinstall"     { Action-Reinstall }
-    "update"        { Action-Update }
-    "add-product"   { Action-AddProduct }
+# ============================================================
+# PUBLIC API: Invoke-OfficeAction
+# Bisa dipanggil in-process setelah dot-source dari menu:
+#   . .\office_actions.ps1
+#   Invoke-OfficeAction -Action "status"
+# Tidak ada spawn child process, tidak ada exit.
+# ============================================================
+function Invoke-OfficeAction {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Action,
+        [string]$ProductId = "",
+        [string]$OfficeRoot = "",
+        [string]$Language = ""
+    )
+
+    # Override nilai param skrip (standalone) dengan argumen pemanggilan fungsi,
+    # karena fungsi-fungsi Action-* membaca variabel level atas.
+    if ($ProductId)  { $script:ProductId = $ProductId }
+    if ($OfficeRoot) { $script:OfficeRoot = $OfficeRoot }
+    if ($Language)   { $script:Language = $Language }
+
+    switch ($Action) {
+        "status"        { Action-Status }
+        "quick-repair"  { Action-QuickRepair }
+        "online-repair" { Action-OnlineRepair }
+        "reinstall"     { Action-Reinstall }
+        "update"        { Action-Update }
+        "add-product"   { Action-AddProduct }
+        default {
+            Write-Err ("Aksi tidak dikenal: {0}" -f $Action)
+            return $false
+        }
+    }
+    return $true
+}
+
+# CLI entry point HANYA jika dijalankan standalone dengan -Action.
+# Saat di-dot-source dari menu, skrip TIDAK boleh auto-run/exit.
+if ($PSBoundParameters.ContainsKey('Action') -and -not [string]::IsNullOrWhiteSpace($Action)) {
+    $okCli = Invoke-OfficeAction -Action $Action -ProductId $ProductId -OfficeRoot $OfficeRoot -Language $Language
+    exit $(if ($okCli) { 0 } else { 1 })
 }

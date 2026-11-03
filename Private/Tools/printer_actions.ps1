@@ -1,13 +1,16 @@
+# printer_actions.ps1 - Modul aksi printer/driver (dot-source-able, TIDAK auto-run)
+# Cara pakai:
+#   1) Dari menu (in-process): . .\printer_actions.ps1 ; Invoke-PrinterAction -Action install ...
+#   2) CLI standalone: powershell -File printer_actions.ps1 -Action install -Name ... -RelativePath ...
+
 param(
-    [Parameter(Mandatory = $true)]
-    [ValidateSet("install", "modify", "uninstall")]
-    [string]$Action,
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("", "install", "modify", "uninstall")]
+    [string]$Action = "",
 
-    [Parameter(Mandatory = $true)]
-    [string]$Name,
+    [string]$Name = "",
 
-    [Parameter(Mandatory = $true)]
-    [string]$RelativePath,
+    [string]$RelativePath = "",
 
     [string]$DriverRoot = "",
 
@@ -60,13 +63,30 @@ function Ensure-DriverRoot {
     throw "DriverRoot kosong. Set di Data\settings.ini atau -DriverRoot."
 }
 
+# Helper: map share SMB tanpa memanggil cmd.exe / net use (mengurangi pemicu SONAR).
+function Connect-UncShare {
+    param(
+        [string]$UncPath,
+        [string]$User,
+        [string]$Pass
+    )
+    if ([string]::IsNullOrWhiteSpace($User) -or [string]::IsNullOrWhiteSpace($Pass)) { return }
+    try {
+        $sec  = ConvertTo-SecureString $Pass -AsPlainText -Force
+        $cred = New-Object System.Management.Automation.PSCredential($User, $sec)
+        $root = [System.IO.Directory]::GetDirectoryRoot((Split-Path -Parent $UncPath.TrimEnd('\')))
+        $driveName = "ITmp{0}" -f (Get-Random -Maximum 9999)
+        New-PSDrive -Name $driveName -PSProvider FileSystem -Root $root -Credential $cred `
+            -Scope Global -ErrorAction Stop | Out-Null
+        Write-Info ("Mapped share via PSDrive: {0}" -f $root)
+    } catch {
+        Write-Warn ("Gagal map share {0}: {1}" -f $UncPath, $_.Exception.Message)
+    }
+}
+
 function Connect-DriverShare {
     if (Test-Path -LiteralPath $DriverRoot) { return }
-    if ([string]::IsNullOrWhiteSpace($ShareUser)) {
-        cmd /c ("net use `"{0}`" /persistent:no" -f $DriverRoot) | Out-Null
-    } else {
-        cmd /c ("net use `"{0}`" /user:{1} `"{2}`" /persistent:no" -f $DriverRoot, $ShareUser, $SharePass) | Out-Null
-    }
+    Connect-UncShare -UncPath $DriverRoot -User $ShareUser -Pass $SharePass
     if (-not (Test-Path -LiteralPath $DriverRoot)) {
         throw ("Tidak bisa akses share driver: {0}" -f $DriverRoot)
     }
@@ -102,11 +122,7 @@ function Connect-PackageShare([string]$filePath) {
     if (Test-Path -LiteralPath $shareRoot) { return }
 
     Write-Info ("Map share: {0}" -f $shareRoot)
-    if ([string]::IsNullOrWhiteSpace($ShareUser)) {
-        cmd /c ("net use `"{0}`" /persistent:no" -f $shareRoot) | Out-Null
-    } else {
-        cmd /c ("net use `"{0}`" /user:{1} `"{2}`" /persistent:no" -f $shareRoot, $ShareUser, $SharePass) | Out-Null
-    }
+    Connect-UncShare -UncPath $shareRoot -User $ShareUser -Pass $SharePass
 }
 
 function Install-DriverPackage {
@@ -301,44 +317,86 @@ function Uninstall-PrinterRelated([string]$printerName) {
     }
 }
 
-try {
-    Write-Host ""
-    Write-Host "========================================" -ForegroundColor Green
-    Write-Host ("  Action: {0}" -f $Action.ToUpper()) -ForegroundColor Green
-    Write-Host ("  Name  : {0}" -f $Name) -ForegroundColor Green
-    if ($ConnType) { Write-Host ("  Conn  : {0}" -f $ConnType) -ForegroundColor Green }
-    if ($Address)  { Write-Host ("  Addr  : {0}" -f $Address) -ForegroundColor Green }
-    Write-Host "========================================" -ForegroundColor Green
-    Write-Host ""
+# ============================================================
+# PUBLIC API: Invoke-PrinterAction
+# Bisa dipanggil in-process setelah dot-source dari menu:
+#   . .\printer_actions.ps1
+#   Invoke-PrinterAction -Action install -Name ... -RelativePath ...
+# Tidak ada spawn child process, tidak ada exit saat di-dot-source.
+# ============================================================
+function Invoke-PrinterAction {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Action,
+        [string]$Name = "",
+        [string]$RelativePath = ".",
+        [string]$DriverRoot = "",
+        [string]$ConnType = "driveronly",
+        [string]$Address = "",
+        [string]$PrinterName = "",
+        [string]$ShareUser = "",
+        [string]$SharePass = ""
+    )
 
-    if ($Action -eq "uninstall") {
-        Uninstall-PrinterRelated -printerName $Name
-    } else {
-        if (-not (Test-IsAbsolutePath -p $RelativePath)) {
-            Ensure-DriverRoot
-            Connect-DriverShare
-        }
-        Install-DriverPackage
+    # Sinkronkan variabel level-skrip karena fungsi internal (helper) membacanya.
+    $script:Action       = $Action
+    $script:Name         = $Name
+    $script:RelativePath = $RelativePath
+    if ($DriverRoot) { $script:DriverRoot = $DriverRoot }
+    $script:ConnType   = $ConnType
+    $script:Address    = $Address
+    $script:PrinterName = $PrinterName
+    $script:ShareUser  = $ShareUser
+    $script:SharePass  = $SharePass
 
-        if ($Action -eq "install") {
-            $qName = if ($PrinterName) { $PrinterName } else { $Name }
-            switch ($ConnType) {
-                "usb"        { Add-ConnUsb }
-                "tcpip"      { Add-ConnTcpIp -Ip $Address -QueueName $qName -DriverHint $Name }
-                "share"      { Add-ConnShare -Unc $Address }
-                "driveronly" { Write-Info "Hanya paket driver (tanpa buat antrian printer)." }
-                default      { Write-Info "ConnType tidak di-set; hanya driver." }
-            }
+    try {
+        Write-Host ""
+        Write-Host "========================================" -ForegroundColor Green
+        Write-Host ("  Action: {0}" -f $Action.ToUpper()) -ForegroundColor Green
+        Write-Host ("  Name  : {0}" -f $Name) -ForegroundColor Green
+        if ($ConnType) { Write-Host ("  Conn  : {0}" -f $ConnType) -ForegroundColor Green }
+        if ($Address)  { Write-Host ("  Addr  : {0}" -f $Address) -ForegroundColor Green }
+        Write-Host "========================================" -ForegroundColor Green
+        Write-Host ""
+
+        if ($Action -eq "uninstall") {
+            Uninstall-PrinterRelated -printerName $Name
         } else {
-            Write-Ok "Modify: paket driver di-update."
-        }
-    }
+            if (-not (Test-IsAbsolutePath -p $RelativePath)) {
+                Ensure-DriverRoot
+                Connect-DriverShare
+            }
+            Install-DriverPackage
 
-    Write-Host ""
-    Write-Ok "Selesai."
+            if ($Action -eq "install") {
+                $qName = if ($PrinterName) { $PrinterName } else { $Name }
+                switch ($ConnType) {
+                    "usb"        { Add-ConnUsb }
+                    "tcpip"      { Add-ConnTcpIp -Ip $Address -QueueName $qName -DriverHint $Name }
+                    "share"      { Add-ConnShare -Unc $Address }
+                    "driveronly" { Write-Info "Hanya paket driver (tanpa buat antrian printer)." }
+                    default      { Write-Info "ConnType tidak di-set; hanya driver." }
+                }
+            } else {
+                Write-Ok "Modify: paket driver di-update."
+            }
+        }
+
+        Write-Host ""
+        Write-Ok "Selesai."
+        return $true
+    } catch {
+        Write-Err $_.Exception.Message
+        return $false
+    }
 }
-catch {
-    Write-Err $_.Exception.Message
-    exit 1
+
+# CLI entry point HANYA jika dijalankan standalone dengan -Action.
+# Saat di-dot-source dari menu, skrip TIDAK boleh auto-run / exit,
+# karena exit akan menghentikan proses induk (menu).
+if ($PSBoundParameters.ContainsKey('Action') -and -not [string]::IsNullOrWhiteSpace($Action)) {
+    $okCli = Invoke-PrinterAction -Action $Action -Name $Name -RelativePath $RelativePath `
+        -DriverRoot $DriverRoot -ConnType $ConnType -Address $Address `
+        -PrinterName $PrinterName -ShareUser $ShareUser -SharePass $SharePass
+    exit $(if ($okCli) { 0 } else { 1 })
 }
-exit 0

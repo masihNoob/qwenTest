@@ -4,6 +4,11 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $DataDir = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "..\Data"))
 $ActionsScript = Join-Path $ScriptDir "printer_actions.ps1"
 
+# Muat modul aksi IN-PROCESS via dot-source (tanpa child process powershell.exe).
+if (Test-Path -LiteralPath $ActionsScript) {
+    . $ActionsScript
+}
+
 $SettingsPath = Join-Path $DataDir "settings.ini"
 $DriversPath  = Join-Path $DataDir "drivers.csv"
 $PrintersPath = Join-Path $DataDir "printers.csv"
@@ -100,23 +105,23 @@ function Invoke-Action {
 
     Write-Info ("Menjalankan: {0} / {1}" -f $Action, $ConnType)
 
-    $argList = @(
-        "-NoProfile",
-        "-ExecutionPolicy", "Bypass",
-        "-File", $ActionsScript,
-        "-Action", $Action,
-        "-Name", $Name,
-        "-RelativePath", $(if ($RelativePath) { $RelativePath } else { "." })
-    )
-    if ($Action -ne "uninstall" -and $DriverRoot) {
-        $argList += @("-DriverRoot", $DriverRoot)
+    # Pemanggilan in-process via fungsi modul (dot-source di awal skrip).
+    # Tidak ada spawn powershell.exe anak.
+    if (-not (Get-Command -Name "Invoke-PrinterAction" -ErrorAction SilentlyContinue)) {
+        . $ActionsScript
     }
+    $params = @{
+        Action       = $Action
+        Name         = $Name
+        RelativePath = $(if ($RelativePath) { $RelativePath } else { "." })
+    }
+    if ($Action -ne "uninstall" -and $DriverRoot) { $params.DriverRoot = $DriverRoot }
     if ($Action -eq "install") {
-        $argList += @("-ConnType", $ConnType)
-        if ($Address)     { $argList += @("-Address", $Address) }
-        if ($PrinterName) { $argList += @("-PrinterName", $PrinterName) }
+        $params.ConnType = $ConnType
+        if ($Address)     { $params.Address = $Address }
+        if ($PrinterName) { $params.PrinterName = $PrinterName }
     }
-    & powershell.exe @argList
+    $null = Invoke-PrinterAction @params
 }
 
 function Get-ActiveTargets {

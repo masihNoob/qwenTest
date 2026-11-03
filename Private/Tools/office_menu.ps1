@@ -1,10 +1,15 @@
--# ============================================================
+# ============================================================
 
 $ErrorActionPreference = "SilentlyContinue"
 $ProgressPreference = "SilentlyContinue"
 
 $ScriptDir     = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ActionsScript = Join-Path $ScriptDir "office_actions.ps1"
+
+# Muat modul aksi IN-PROCESS via dot-source (tanpa child process powershell.exe).
+if (Test-Path -LiteralPath $ActionsScript) {
+    . $ActionsScript
+}
 
 function Write-Info([string]$msg) { Write-Host "[INFO] $msg" -ForegroundColor Cyan }
 function Write-Ok([string]$msg)   { Write-Host "[OK]   $msg" -ForegroundColor Green }
@@ -50,7 +55,12 @@ function Invoke-OfficeAction {
         if ($OfficeRoot -and $OfficeRoot.Trim() -ne "") { $params.OfficeRoot = $OfficeRoot.Trim() }
         if ($Language -and $Language.Trim() -ne "") { $params.Language = $Language.Trim() }
 
-        & $ActionsScript @params
+        # Pemanggilan in-process via fungsi modul (dot-source di awal skrip).
+        # Tidak ada spawn powershell.exe / child script.
+        if (-not (Get-Command -Name "Invoke-OfficeAction" -ErrorAction SilentlyContinue)) {
+            . $ActionsScript
+        }
+        $null = Invoke-OfficeAction @params
     } catch {
         Write-Err ("Aksi '{0}' gagal: {1}" -f $Action, $_)
     }
