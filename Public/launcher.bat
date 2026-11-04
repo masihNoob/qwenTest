@@ -16,16 +16,16 @@ set "LOCAL_MODE=0"
 if /i "%ITOOLS_LOCAL%"=="1" set "LOCAL_MODE=1"
 set "LOCAL_PRIVATE_SUBDIR=Private"
 
-REM --- Nama host PowerShell yang dipakai launcher (lihat :ps_prep) ---
-REM     PATUHI KEBIJAKAN IT: default memakai powershell.exe resmi.
-REM     Menamai ulang powershell.exe menjadi binari lain (mis. netsh.exe)
-REM     adalah taktik penghindaran deteksi yang melanggar kebijakan EDR
-REM     kebanyakan organisasi dan dapat dianggap insiden keamanan.
-REM     Bila tim Security MENYETUJUI pengecualian tertulis, barulah
-REM     set ITOOLS_PSNAME=netsh.exe (atau nama lain) via environment.
-if not defined ITOOLS_PSNAME set "ITOOLS_PSNAME="
+REM --- Host PowerShell (lihat :ps_prep) ---
+REM     PATUHI KEBIJAKAN IT: launcher SELALU memakai powershell.exe resmi
+REM     dari System32. Opsi penamaan ulang host (rename ke netsh.exe dll.)
+REM     telah DIHAPUS karena merupakan taktik penghindaran deteksi
+REM     (MITRE ATT&CK T1036.003) yang melanggar kebijakan EDR dan dapat
+REM     dianggap insiden keamanan oleh tim Security.
+REM     Agar tidak terdeteksi Symantec: minta exclusion berbasis hash /
+REM     code-signing, bukan menyamarkan proses.
 
-set "LOCAL_VERSION=1.2.0"
+set "LOCAL_VERSION=1.2.1"
 
 REM Jalankan file ini sebagai Administrator (klik kanan -> Run as administrator).
 REM Launcher berjalan langsung dari lokasi file; tidak ada salinan ke TEMP/LocalAppData.
@@ -41,35 +41,24 @@ set "HTTP_PASS="
 set "AUTH_USER="
 set "AUTH_PASS="
 set "PS_EXE="
+set "PS_EXEC_FLAG="
+if /i "%ITOOLS_ALLOW_BYPASS%"=="1" set "PS_EXEC_FLAG=-ExecutionPolicy Bypass"
 
 cd /d "%LAUNCHER_DIR%" >nul 2>&1
 
 :ps_prep
 REM ============================================================
-REM Default kebijakan: launcher memakai powershell.exe resmi dari
-REM System32 (ITOOLS_PSNAME kosong). Semua panggilan PowerShell
-REM dijalankan lewat subroutine :ps_run / :ps_run_tool.
-REM Opsi penamaan ulang (rename host) HANYA dipakai bila tim Security
-REM memberikan persetujuan tertulis: set ITOOLS_PSNAME=netsh.exe.
+REM PATUHI KEBIJAKAN IT: launcher selalu memakai powershell.exe
+REM resmi dari System32. Tidak ada penamaan ulang host, tidak ada
+REM salinan binari, tidak ada override environment.
+REM Semua panggilan PowerShell dijalankan lewat :ps_run / :ps_run_tool.
 REM ============================================================
-set "PS_REAL=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
-if not exist "%PS_REAL%" set "PS_REAL=%ProgramFiles%\Windows PowerShell\v1.0\powershell.exe"
-set "PS_EXE=%PS_REAL%"
-if not "%ITOOLS_PSNAME%"=="" (
-    if exist "%LAUNCHER_DIR%%ITOOLS_PSNAME%" (
-        set "PS_EXE=%LAUNCHER_DIR%%ITOOLS_PSNAME%"
-    ) else if exist "%PS_REAL%" (
-        copy /y "%PS_REAL%" "%LAUNCHER_DIR%%ITOOLS_PSNAME%" >nul 2>&1
-        if exist "%LAUNCHER_DIR%%ITOOLS_PSNAME%" (
-            set "PS_EXE=%LAUNCHER_DIR%%ITOOLS_PSNAME%"
-        )
-    )
-)
+set "PS_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+if not exist "%PS_EXE%" set "PS_EXE=%ProgramFiles%\Windows PowerShell\v1.0\powershell.exe"
 echo [INFO] PowerShell host: !PS_EXE!
 
 REM --- Helper SecureString -> teks plain (dipakai lewat for /f) ---
-REM     Dekode hanya terjadi pada proses yang sudah dinamai ulang,
-REM     dan password tidak pernah ditulis ke disk.
+REM     Password hanya hidup di memori proses anak, tidak pernah ditulis ke disk.
 set "PS_UNPROTECT=$s=Read-Host $env:ITOOLS_PROMPT -AsSecureString; $i=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($s); try {[Runtime.InteropServices.Marshal]::PtrToStringBSTR($i)} finally {[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($i)}"
 
 REM --- Helper: jalankan satu perintah PowerShell lewat host PS_EXE ---
@@ -388,7 +377,9 @@ if !errorLevel! equ 0 (
 )
 
 echo [INFO] Mengunduh tool via HTTP...
-"!PS_EXE!" -NoProfile -ExecutionPolicy Bypass -Command ^
+REM -ExecutionPolicy Bypass dihapus; policy dijalankan dari registry (MachinePolicy/GPO).
+REM Flag PS_EXEC_FLAG sudah disiapkan di bagian atas launcher (env ITOOLS_ALLOW_BYPASS).
+"!PS_EXE!" -NoProfile %PS_EXEC_FLAG% -Command ^
   "$ErrorActionPreference='Stop';" ^
   "$u='!HTTP_USER!'; $p='!HTTP_PASS!';" ^
   "$pair=$u+':'+$p; $b64=[Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair));" ^
@@ -418,9 +409,10 @@ if /i "!exe_type!"=="bat" cmd.exe /c call "!exe_path!"
 if /i "!exe_type!"=="ps1" call :ps_run_tool "!exe_path!"
 
 :ps_run_tool
-REM Jalankan satu tool .ps1 lewat host PS_EXE (default: powershell.exe resmi;
-REM bisa dioverride via ITOOLS_PSNAME jika disetujui tim Security).
-"%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%~1"
+REM Jalankan satu tool .ps1 lewat powershell.exe resmi (tanpa rename host).
+REM -ExecutionPolicy Bypass dihapus; policy diambil dari registry/GPO.
+REM Override sadar: set ITOOLS_ALLOW_BYPASS=1 bila environment menolak.
+"%PS_EXE%" -NoProfile %PS_EXEC_FLAG% -File "%~1"
 goto :eof
 
 :after_run
