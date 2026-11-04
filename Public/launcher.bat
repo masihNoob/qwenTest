@@ -17,14 +17,13 @@ if /i "%ITOOLS_LOCAL%"=="1" set "LOCAL_MODE=1"
 set "LOCAL_PRIVATE_SUBDIR=Private"
 
 REM --- Nama host PowerShell yang dipakai launcher (lihat :ps_prep) ---
-REM     SONAR paling sering memicu rantai proses cmd.exe -> powershell.exe.
-REM     Launcher menyalin powershell.exe ke LAUNCHER_DIR dengan nama lain
-REM     sehingga proses anak tidak bernama "powershell.exe".
-REM     Default: netsh.exe (utilitas jaringan bawaan Windows, sudah trusted;
-REM     salinan ini hanya dipakai internal, perintah netsh asli di System32
-REM     tetap tidak tertimpa).
-REM     Set ITOOLS_PSNAME= (kosong) untuk memakai powershell.exe apa adanya.
-if not defined ITOOLS_PSNAME set "ITOOLS_PSNAME=netsh.exe"
+REM     PATUHI KEBIJAKAN IT: default memakai powershell.exe resmi.
+REM     Menamai ulang powershell.exe menjadi binari lain (mis. netsh.exe)
+REM     adalah taktik penghindaran deteksi yang melanggar kebijakan EDR
+REM     kebanyakan organisasi dan dapat dianggap insiden keamanan.
+REM     Bila tim Security MENYETUJUI pengecualian tertulis, barulah
+REM     set ITOOLS_PSNAME=netsh.exe (atau nama lain) via environment.
+if not defined ITOOLS_PSNAME set "ITOOLS_PSNAME="
 
 set "LOCAL_VERSION=1.2.0"
 
@@ -47,13 +46,11 @@ cd /d "%LAUNCHER_DIR%" >nul 2>&1
 
 :ps_prep
 REM ============================================================
-REM SONAR menilai rantai proses; cmd.exe -> powershell.exe adalah
-REM pemicu yang paling sering untuk launcher berbasis batch.
-REM Launcher menyalin powershell.exe ke LAUNCHER_DIR memakai nama
-REM ITOOLS_PSNAME (lihat bagian atas file), lalu semua panggilan
-REM PowerShell dijalankan lewat subroutine :ps_run / :ps_run_tool.
-REM Bila penamaan tidak diizinkan kebijakan, set ITOOLS_PSNAME=
-REM (kosong) agar launcher memakai powershell.exe asli.
+REM Default kebijakan: launcher memakai powershell.exe resmi dari
+REM System32 (ITOOLS_PSNAME kosong). Semua panggilan PowerShell
+REM dijalankan lewat subroutine :ps_run / :ps_run_tool.
+REM Opsi penamaan ulang (rename host) HANYA dipakai bila tim Security
+REM memberikan persetujuan tertulis: set ITOOLS_PSNAME=netsh.exe.
 REM ============================================================
 set "PS_REAL=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 if not exist "%PS_REAL%" set "PS_REAL=%ProgramFiles%\Windows PowerShell\v1.0\powershell.exe"
@@ -421,8 +418,8 @@ if /i "!exe_type!"=="bat" cmd.exe /c call "!exe_path!"
 if /i "!exe_type!"=="ps1" call :ps_run_tool "!exe_path!"
 
 :ps_run_tool
-REM Jalankan satu tool .ps1 lewat host PS_EXE (netsh.exe yang dinamai ulang),
-REM bukan powershell.exe langsung -> memutus rantai cmd->powershell di SONAR.
+REM Jalankan satu tool .ps1 lewat host PS_EXE (default: powershell.exe resmi;
+REM bisa dioverride via ITOOLS_PSNAME jika disetujui tim Security).
 "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%~1"
 goto :eof
 
